@@ -178,7 +178,8 @@ export const DatabasesPage = () => {
               const StatusIcon = statusInfo.icon;
 
               return (
-                <div
+                <Link
+                  to={`/databases/${db.id}`}
                   key={db.id}
                   className="group bg-card rounded-xl border border-border/60 p-5 hover:border-primary/30 hover:shadow-md transition-all duration-300 animate-slide-up"
                   style={{ animationDelay: `${index * 50}ms` }}
@@ -190,7 +191,7 @@ export const DatabasesPage = () => {
                         <Database className="w-5 h-5 text-accent-foreground" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-foreground">{db.name}</h3>
+                        <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">{db.name}</h3>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <SourceIcon className="w-3 h-3" />
                           {sourceTypeLabels[db.sourceType]}
@@ -204,6 +205,7 @@ export const DatabasesPage = () => {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => e.preventDefault()}
                         >
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
@@ -249,7 +251,7 @@ export const DatabasesPage = () => {
                       {db.lastSync}
                     </span>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>
