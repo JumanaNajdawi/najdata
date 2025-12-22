@@ -8,6 +8,8 @@ import { DataSourcePage } from "./components/data-source/DataSourcePage";
 import { AppLayout } from "./components/layout/AppLayout";
 import { HomePage } from "./pages/HomePage";
 import { DatabasesPage } from "./pages/DatabasesPage";
+import { CreateDatabasePage } from "./pages/CreateDatabasePage";
+import { DatabaseDetailPage } from "./pages/DatabaseDetailPage";
 import { InsightsPage } from "./pages/InsightsPage";
 import { CreateInsightPage } from "./pages/CreateInsightPage";
 import { DashboardsPage } from "./pages/DashboardsPage";
@@ -32,7 +34,8 @@ const App = () => (
           {/* App routes with layout */}
           <Route path="/home" element={<AppLayout><HomePage /></AppLayout>} />
           <Route path="/databases" element={<AppLayout><DatabasesPage /></AppLayout>} />
-          <Route path="/databases/new" element={<AppLayout><DataSourcePage /></AppLayout>} />
+          <Route path="/databases/new" element={<AppLayout><CreateDatabasePage /></AppLayout>} />
+          <Route path="/databases/:id" element={<AppLayout><DatabaseDetailPage /></AppLayout>} />
           <Route path="/insights" element={<AppLayout><InsightsPage /></AppLayout>} />
           <Route path="/insights/new" element={<AppLayout><CreateInsightPage /></AppLayout>} />
           <Route path="/dashboards" element={<AppLayout><DashboardsPage /></AppLayout>} />
