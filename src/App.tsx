@@ -12,6 +12,8 @@ import { CreateDatabasePage } from "./pages/CreateDatabasePage";
 import { DatabaseDetailPage } from "./pages/DatabaseDetailPage";
 import { InsightsPage } from "./pages/InsightsPage";
 import { CreateInsightPage } from "./pages/CreateInsightPage";
+import { WorkflowBuilderPage } from "./pages/WorkflowBuilderPage";
+import { SQLEditorPage } from "./pages/SQLEditorPage";
 import { DashboardsPage } from "./pages/DashboardsPage";
 import { DashboardViewPage } from "./pages/DashboardViewPage";
 import { AIAgentPage } from "./pages/AIAgentPage";
@@ -38,6 +40,8 @@ const App = () => (
           <Route path="/databases/:id" element={<AppLayout><DatabaseDetailPage /></AppLayout>} />
           <Route path="/insights" element={<AppLayout><InsightsPage /></AppLayout>} />
           <Route path="/insights/new" element={<AppLayout><CreateInsightPage /></AppLayout>} />
+          <Route path="/insights/new/workflow" element={<AppLayout><WorkflowBuilderPage /></AppLayout>} />
+          <Route path="/insights/new/sql" element={<AppLayout><SQLEditorPage /></AppLayout>} />
           <Route path="/dashboards" element={<AppLayout><DashboardsPage /></AppLayout>} />
           <Route path="/dashboards/:id" element={<AppLayout><DashboardViewPage /></AppLayout>} />
           <Route path="/ai-agent" element={<AppLayout><AIAgentPage /></AppLayout>} />
