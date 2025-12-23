@@ -14,7 +14,12 @@ export const AuthPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    navigate("/data-source");
+    // Login goes directly to home, signup goes to onboarding
+    if (isLogin) {
+      navigate("/home");
+    } else {
+      navigate("/onboarding");
+    }
   };
 
   const features = [
