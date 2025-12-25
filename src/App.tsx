@@ -13,6 +13,7 @@ import { CreateDatabasePage } from "./pages/CreateDatabasePage";
 import { DatabaseDetailPage } from "./pages/DatabaseDetailPage";
 import { InsightsPage } from "./pages/InsightsPage";
 import { CreateInsightPage } from "./pages/CreateInsightPage";
+import { InsightDetailPage } from "./pages/InsightDetailPage";
 import { WorkflowBuilderPage } from "./pages/WorkflowBuilderPage";
 import { SQLEditorPage } from "./pages/SQLEditorPage";
 import { DashboardsPage } from "./pages/DashboardsPage";
@@ -44,6 +45,7 @@ const App = () => (
           <Route path="/insights/new" element={<AppLayout><CreateInsightPage /></AppLayout>} />
           <Route path="/insights/new/workflow" element={<AppLayout><WorkflowBuilderPage /></AppLayout>} />
           <Route path="/insights/new/sql" element={<AppLayout><SQLEditorPage /></AppLayout>} />
+          <Route path="/insights/:id" element={<AppLayout><InsightDetailPage /></AppLayout>} />
           <Route path="/dashboards" element={<AppLayout><DashboardsPage /></AppLayout>} />
           <Route path="/dashboards/:id" element={<AppLayout><DashboardViewPage /></AppLayout>} />
           <Route path="/ai-agent" element={<AppLayout><AIAgentPage /></AppLayout>} />

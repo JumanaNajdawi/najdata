@@ -10,28 +10,19 @@ import {
   Table2,
   Clock,
   ChevronRight,
-  BarChart2,
-  LineChart,
-  PieChart,
   Copy,
   Check,
+  PanelRightClose,
+  PanelRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import {
-  BarChart,
-  Bar,
-  LineChart as RechartsLine,
-  Line,
-  PieChart as RechartsPie,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { SavedQueriesPanel, SavedQuery } from "@/components/sql/SavedQueriesPanel";
+import { SQLVisualizationPanel, VisualizationConfig } from "@/components/sql/SQLVisualizationPanel";
+import { ChartPreview } from "@/components/workflow/ChartPreview";
+import { WorkflowBlock, ChartType } from "@/components/workflow/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const SAMPLE_QUERY = `SELECT 
   DATE_TRUNC('month', created_at) as month,
@@ -60,8 +51,6 @@ const CHART_DATA = [
   { name: "Jun", value: 5500 },
 ];
 
-const PIE_COLORS = ["hsl(230, 84%, 60%)", "hsl(162, 96%, 43%)", "hsl(280, 84%, 60%)", "hsl(35, 92%, 55%)", "hsl(350, 84%, 60%)"];
-
 const QUERY_HISTORY = [
   { id: "1", query: "SELECT * FROM orders LIMIT 10", time: "2 min ago" },
   { id: "2", query: "SELECT COUNT(*) FROM users", time: "15 min ago" },
@@ -75,17 +64,24 @@ const TABLES = [
   { name: "order_items", columns: ["id", "order_id", "product_id", "quantity"] },
 ];
 
-type ChartType = "bar" | "line" | "pie" | "table";
-
 export const SQLEditorPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [insightName, setInsightName] = useState("Untitled SQL Insight");
   const [query, setQuery] = useState(SAMPLE_QUERY);
   const [hasRun, setHasRun] = useState(true);
-  const [chartType, setChartType] = useState<ChartType>("bar");
+  const [chartType, setChartType] = useState<ChartType | "table">("bar");
   const [copied, setCopied] = useState(false);
   const [selectedDb] = useState("Sales DB");
+  const [leftPanelTab, setLeftPanelTab] = useState<"schema" | "saved">("schema");
+  const [showRightPanel, setShowRightPanel] = useState(true);
+
+  const [vizConfig, setVizConfig] = useState<VisualizationConfig>({
+    colorScheme: "default",
+    showLegend: true,
+    showGrid: true,
+    showDataLabels: false,
+  });
 
   const handleRun = () => {
     setHasRun(true);
@@ -108,6 +104,40 @@ export const SQLEditorPage = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const handleLoadQuery = (savedQuery: SavedQuery) => {
+    setQuery(savedQuery.query);
+    setHasRun(false);
+    toast({
+      title: "Query loaded",
+      description: `"${savedQuery.name}" has been loaded`,
+    });
+  };
+
+  // Create mock workflow for ChartPreview
+  const mockWorkflow: WorkflowBlock[] = [
+    {
+      id: "viz-1",
+      instanceId: "viz-instance-1",
+      type: `${chartType}-chart`,
+      label: "Chart",
+      icon: "BarChart2",
+      category: "visualize",
+      config: {
+        chartType: chartType === "table" ? "bar" : chartType,
+        colorScheme: vizConfig.colorScheme,
+        showLegend: vizConfig.showLegend,
+        showGrid: vizConfig.showGrid,
+        showDataLabels: vizConfig.showDataLabels,
+        chartTitle: vizConfig.chartTitle,
+        innerRadius: vizConfig.innerRadius,
+        outerRadius: vizConfig.outerRadius,
+        barRadius: vizConfig.barRadius,
+        lineStrokeWidth: vizConfig.lineStrokeWidth,
+        areaOpacity: vizConfig.areaOpacity,
+      },
+    },
+  ];
 
   const renderChart = () => {
     if (chartType === "table") {
@@ -133,52 +163,7 @@ export const SQLEditorPage = () => {
       );
     }
 
-    return (
-      <ResponsiveContainer width="100%" height={240}>
-        {chartType === "line" ? (
-          <RechartsLine data={CHART_DATA}>
-            <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-            <YAxis fontSize={12} tickLine={false} axisLine={false} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
-              }}
-            />
-            <Line type="monotone" dataKey="value" stroke="hsl(162, 96%, 43%)" strokeWidth={2} dot={{ fill: "hsl(162, 96%, 43%)" }} />
-          </RechartsLine>
-        ) : chartType === "pie" ? (
-          <RechartsPie data={CHART_DATA}>
-            <Pie data={CHART_DATA} cx="50%" cy="50%" innerRadius={40} outerRadius={80} paddingAngle={2} dataKey="value">
-              {CHART_DATA.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
-              }}
-            />
-          </RechartsPie>
-        ) : (
-          <BarChart data={CHART_DATA}>
-            <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-            <YAxis fontSize={12} tickLine={false} axisLine={false} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
-              }}
-            />
-            <Bar dataKey="value" fill="hsl(230, 84%, 60%)" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        )}
-      </ResponsiveContainer>
-    );
+    return <ChartPreview workflow={mockWorkflow} data={CHART_DATA} />;
   };
 
   return (
@@ -200,6 +185,18 @@ export const SQLEditorPage = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowRightPanel(!showRightPanel)}
+            className="h-8 w-8"
+          >
+            {showRightPanel ? (
+              <PanelRightClose className="w-4 h-4" />
+            ) : (
+              <PanelRight className="w-4 h-4" />
+            )}
+          </Button>
           <Button variant="outline" size="sm" onClick={handleRun}>
             <Play className="w-4 h-4 mr-2" />
             Run Query
@@ -212,66 +209,93 @@ export const SQLEditorPage = () => {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Schema Sidebar */}
-        <aside className="w-56 border-r border-border/60 bg-card/50 flex flex-col shrink-0">
-          {/* Database Selector */}
-          <div className="p-3 border-b border-border/60">
-            <div className="flex items-center gap-2 px-2 py-1.5 bg-accent/50 rounded-lg">
-              <Database className="w-4 h-4 text-accent-foreground" />
-              <span className="text-sm font-medium text-foreground">{selectedDb}</span>
-            </div>
-          </div>
+        {/* Left Sidebar - Schema & Saved Queries */}
+        <aside className="w-64 border-r border-border/60 bg-card/50 flex flex-col shrink-0">
+          <Tabs
+            value={leftPanelTab}
+            onValueChange={(v) => setLeftPanelTab(v as "schema" | "saved")}
+            className="flex flex-col h-full"
+          >
+            <TabsList className="w-full justify-start rounded-none border-b border-border/60 bg-transparent p-0 h-10">
+              <TabsTrigger
+                value="schema"
+                className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              >
+                Schema
+              </TabsTrigger>
+              <TabsTrigger
+                value="saved"
+                className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              >
+                Saved
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Tables */}
-          <div className="flex-1 overflow-y-auto p-3">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 px-1">
-              Tables
-            </h3>
-            <div className="space-y-1">
-              {TABLES.map((table) => (
-                <details key={table.name} className="group">
-                  <summary className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm cursor-pointer hover:bg-muted/50 list-none">
-                    <ChevronRight className="w-3 h-3 text-muted-foreground group-open:rotate-90 transition-transform" />
-                    <Table2 className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-foreground">{table.name}</span>
-                  </summary>
-                  <div className="ml-6 mt-1 space-y-0.5">
-                    {table.columns.map((col) => (
-                      <button
-                        key={col}
-                        onClick={() => setQuery((q) => q + ` ${col}`)}
-                        className="w-full text-left px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded"
-                      >
-                        {col}
-                      </button>
-                    ))}
-                  </div>
-                </details>
-              ))}
-            </div>
-          </div>
+            <TabsContent value="schema" className="flex-1 flex flex-col m-0 overflow-hidden">
+              {/* Database Selector */}
+              <div className="p-3 border-b border-border/60">
+                <div className="flex items-center gap-2 px-2 py-1.5 bg-accent/50 rounded-lg">
+                  <Database className="w-4 h-4 text-accent-foreground" />
+                  <span className="text-sm font-medium text-foreground">{selectedDb}</span>
+                </div>
+              </div>
 
-          {/* Query History */}
-          <div className="border-t border-border/60 p-3">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 px-1">
-              History
-            </h3>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {QUERY_HISTORY.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setQuery(item.query)}
-                  className="w-full text-left px-2 py-1.5 rounded-lg text-xs hover:bg-muted/50 group"
-                >
-                  <p className="text-foreground truncate group-hover:text-primary">{item.query}</p>
-                  <p className="text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <Clock className="w-3 h-3" />
-                    {item.time}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
+              {/* Tables */}
+              <div className="flex-1 overflow-y-auto p-3">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 px-1">
+                  Tables
+                </h3>
+                <div className="space-y-1">
+                  {TABLES.map((table) => (
+                    <details key={table.name} className="group">
+                      <summary className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm cursor-pointer hover:bg-muted/50 list-none">
+                        <ChevronRight className="w-3 h-3 text-muted-foreground group-open:rotate-90 transition-transform" />
+                        <Table2 className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-foreground">{table.name}</span>
+                      </summary>
+                      <div className="ml-6 mt-1 space-y-0.5">
+                        {table.columns.map((col) => (
+                          <button
+                            key={col}
+                            onClick={() => setQuery((q) => q + ` ${col}`)}
+                            className="w-full text-left px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded"
+                          >
+                            {col}
+                          </button>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </div>
+
+              {/* Query History */}
+              <div className="border-t border-border/60 p-3">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 px-1">
+                  History
+                </h3>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {QUERY_HISTORY.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setQuery(item.query)}
+                      className="w-full text-left px-2 py-1.5 rounded-lg text-xs hover:bg-muted/50 group"
+                    >
+                      <p className="text-foreground truncate group-hover:text-primary">{item.query}</p>
+                      <p className="text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Clock className="w-3 h-3" />
+                        {item.time}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="saved" className="flex-1 m-0 overflow-hidden">
+              <SavedQueriesPanel onLoadQuery={handleLoadQuery} currentQuery={query} />
+            </TabsContent>
+          </Tabs>
         </aside>
 
         {/* Main Editor Area */}
@@ -306,29 +330,24 @@ export const SQLEditorPage = () => {
                   <span className="text-sm font-medium text-foreground">Results</span>
                   <span className="text-xs text-muted-foreground">{SAMPLE_RESULTS.length} rows</span>
                 </div>
-                <div className="flex items-center gap-1 border border-border rounded-lg p-0.5">
-                  {[
-                    { type: "bar" as const, icon: BarChart2 },
-                    { type: "line" as const, icon: LineChart },
-                    { type: "pie" as const, icon: PieChart },
-                    { type: "table" as const, icon: Table2 },
-                  ].map((opt) => (
-                    <Button
-                      key={opt.type}
-                      variant={chartType === opt.type ? "secondary" : "ghost"}
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      onClick={() => setChartType(opt.type)}
-                    >
-                      <opt.icon className="w-4 h-4" />
-                    </Button>
-                  ))}
-                </div>
               </div>
               <div className="flex-1 p-4 overflow-auto">{renderChart()}</div>
             </div>
           )}
         </main>
+
+        {/* Right Panel - Visualization Options */}
+        {showRightPanel && (
+          <aside className="w-72 border-l border-border/60 bg-card/50 flex flex-col shrink-0">
+            <SQLVisualizationPanel
+              chartType={chartType}
+              onChartTypeChange={setChartType}
+              config={vizConfig}
+              onConfigChange={setVizConfig}
+              columns={["month", "revenue", "count", "name", "value"]}
+            />
+          </aside>
+        )}
       </div>
     </div>
   );
