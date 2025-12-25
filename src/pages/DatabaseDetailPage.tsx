@@ -119,7 +119,7 @@ export const DatabaseDetailPage = () => {
               <h1 className="text-xl font-semibold text-foreground">Sales DB</h1>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <CheckCircle2 className="w-3.5 h-3.5 text-secondary" />
-                <span>Synced 2 min ago</span>
+                <span>Connected</span>
               </div>
             </div>
           </div>
