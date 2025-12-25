@@ -28,7 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 type SourceType = "file" | "postgres" | "mysql" | "api";
-type SyncStatus = "synced" | "syncing" | "error";
+type ConnectionStatus = "connected" | "connecting" | "disconnected";
 
 interface DatabaseItem {
   id: string;
@@ -36,7 +36,7 @@ interface DatabaseItem {
   sourceType: SourceType;
   tables: number;
   rows: number;
-  status: SyncStatus;
+  status: ConnectionStatus;
   lastSync: string;
   createdAt: string;
 }
@@ -48,7 +48,7 @@ const SAMPLE_DATABASES: DatabaseItem[] = [
     sourceType: "postgres",
     tables: 12,
     rows: 45000,
-    status: "synced",
+    status: "connected",
     lastSync: "2 minutes ago",
     createdAt: "2024-01-01",
   },
@@ -58,7 +58,7 @@ const SAMPLE_DATABASES: DatabaseItem[] = [
     sourceType: "file",
     tables: 3,
     rows: 2500,
-    status: "synced",
+    status: "connected",
     lastSync: "1 hour ago",
     createdAt: "2024-01-05",
   },
@@ -68,8 +68,8 @@ const SAMPLE_DATABASES: DatabaseItem[] = [
     sourceType: "api",
     tables: 8,
     rows: 12000,
-    status: "syncing",
-    lastSync: "Syncing now...",
+    status: "connecting",
+    lastSync: "Connecting...",
     createdAt: "2024-01-10",
   },
   {
@@ -78,8 +78,8 @@ const SAMPLE_DATABASES: DatabaseItem[] = [
     sourceType: "mysql",
     tables: 15,
     rows: 89000,
-    status: "error",
-    lastSync: "Failed 3 hours ago",
+    status: "disconnected",
+    lastSync: "Disconnected 3 hours ago",
     createdAt: "2024-01-12",
   },
 ];
@@ -98,10 +98,10 @@ const sourceTypeLabels: Record<SourceType, string> = {
   api: "API",
 };
 
-const statusConfig: Record<SyncStatus, { icon: React.ElementType; color: string; label: string }> = {
-  synced: { icon: CheckCircle2, color: "text-secondary", label: "Synced" },
-  syncing: { icon: RefreshCw, color: "text-chart-4 animate-spin", label: "Syncing" },
-  error: { icon: AlertCircle, color: "text-destructive", label: "Error" },
+const statusConfig: Record<ConnectionStatus, { icon: React.ElementType; color: string; label: string }> = {
+  connected: { icon: CheckCircle2, color: "text-secondary", label: "Connected" },
+  connecting: { icon: RefreshCw, color: "text-chart-4 animate-spin", label: "Connecting" },
+  disconnected: { icon: AlertCircle, color: "text-destructive", label: "Disconnected" },
 };
 
 export const DatabasesPage = () => {
