@@ -16,6 +16,7 @@ import {
   Copy,
   Edit,
   ExternalLink,
+  Share2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
@@ -27,6 +28,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { CreateDashboardDialog } from "@/components/dashboard/CreateDashboardDialog";
+import { ShareDashboardDialog } from "@/components/dashboard/ShareDashboardDialog";
+import { useToast } from "@/hooks/use-toast";
 
 type ViewMode = "grid" | "list";
 
@@ -38,11 +42,12 @@ interface Dashboard {
   visibility: "private" | "public";
   isMain?: boolean;
   starred?: boolean;
+  color?: string;
   updatedAt: string;
   createdAt: string;
 }
 
-const SAMPLE_DASHBOARDS: Dashboard[] = [
+const INITIAL_DASHBOARDS: Dashboard[] = [
   {
     id: "main",
     name: "Main Dashboard",
@@ -51,6 +56,7 @@ const SAMPLE_DASHBOARDS: Dashboard[] = [
     visibility: "private",
     isMain: true,
     starred: true,
+    color: "blue",
     updatedAt: "Just now",
     createdAt: "2024-01-01",
   },
@@ -61,6 +67,7 @@ const SAMPLE_DASHBOARDS: Dashboard[] = [
     insightCount: 5,
     visibility: "public",
     starred: true,
+    color: "green",
     updatedAt: "2 hours ago",
     createdAt: "2024-01-10",
   },
@@ -70,6 +77,7 @@ const SAMPLE_DASHBOARDS: Dashboard[] = [
     description: "Campaign performance and user acquisition",
     insightCount: 4,
     visibility: "private",
+    color: "purple",
     updatedAt: "Yesterday",
     createdAt: "2024-01-12",
   },
@@ -79,6 +87,7 @@ const SAMPLE_DASHBOARDS: Dashboard[] = [
     description: "User engagement and feature adoption",
     insightCount: 6,
     visibility: "private",
+    color: "orange",
     updatedAt: "3 days ago",
     createdAt: "2024-01-15",
   },
@@ -87,11 +96,129 @@ const SAMPLE_DASHBOARDS: Dashboard[] = [
 export const DashboardsPage = () => {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [searchQuery, setSearchQuery] = useState("");
-  const [dashboards] = useState<Dashboard[]>(SAMPLE_DASHBOARDS);
+  const [dashboards, setDashboards] = useState<Dashboard[]>(INITIAL_DASHBOARDS);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editingDashboard, setEditingDashboard] = useState<Dashboard | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [sharingDashboard, setSharingDashboard] = useState<Dashboard | null>(null);
+  const { toast } = useToast();
 
   const filteredDashboards = dashboards.filter((dashboard) =>
     dashboard.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleCreateDashboard = (newDashboard: Omit<Dashboard, "id" | "insightCount" | "updatedAt" | "createdAt">) => {
+    const dashboard: Dashboard = {
+      ...newDashboard,
+      id: Date.now().toString(),
+      insightCount: 0,
+      updatedAt: "Just now",
+      createdAt: new Date().toISOString().split("T")[0],
+    };
+
+    // If setting as main, unset previous main
+    if (dashboard.isMain) {
+      setDashboards((prev) =>
+        prev.map((d) => ({ ...d, isMain: false }))
+      );
+    }
+
+    setDashboards((prev) => [dashboard, ...prev]);
+    setCreateDialogOpen(false);
+    toast({
+      title: "Dashboard created",
+      description: `"${dashboard.name}" has been created successfully`,
+    });
+  };
+
+  const handleEditDashboard = (updatedDashboard: Omit<Dashboard, "id" | "insightCount" | "updatedAt" | "createdAt">) => {
+    if (!editingDashboard) return;
+
+    // If setting as main, unset previous main
+    if (updatedDashboard.isMain) {
+      setDashboards((prev) =>
+        prev.map((d) =>
+          d.id === editingDashboard.id
+            ? { ...d, ...updatedDashboard, updatedAt: "Just now" }
+            : { ...d, isMain: false }
+        )
+      );
+    } else {
+      setDashboards((prev) =>
+        prev.map((d) =>
+          d.id === editingDashboard.id
+            ? { ...d, ...updatedDashboard, updatedAt: "Just now" }
+            : d
+        )
+      );
+    }
+
+    setEditingDashboard(null);
+    toast({
+      title: "Dashboard updated",
+      description: `"${updatedDashboard.name}" has been updated`,
+    });
+  };
+
+  const handleDeleteDashboard = (id: string) => {
+    const dashboard = dashboards.find((d) => d.id === id);
+    if (dashboard?.isMain) {
+      toast({
+        title: "Cannot delete main dashboard",
+        description: "Set another dashboard as main first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setDashboards((prev) => prev.filter((d) => d.id !== id));
+    toast({
+      title: "Dashboard deleted",
+      description: "The dashboard has been removed",
+    });
+  };
+
+  const handleDuplicateDashboard = (dashboard: Dashboard) => {
+    const duplicate: Dashboard = {
+      ...dashboard,
+      id: Date.now().toString(),
+      name: `${dashboard.name} (Copy)`,
+      isMain: false,
+      updatedAt: "Just now",
+    };
+    setDashboards((prev) => [duplicate, ...prev]);
+    toast({
+      title: "Dashboard duplicated",
+      description: `"${duplicate.name}" has been created`,
+    });
+  };
+
+  const handleToggleStar = (id: string) => {
+    setDashboards((prev) =>
+      prev.map((d) =>
+        d.id === id ? { ...d, starred: !d.starred } : d
+      )
+    );
+  };
+
+  const handleShareDashboard = (dashboard: Dashboard) => {
+    setSharingDashboard(dashboard);
+    setShareDialogOpen(true);
+  };
+
+  const handleVisibilityChange = (isPublic: boolean) => {
+    if (!sharingDashboard) return;
+    setDashboards((prev) =>
+      prev.map((d) =>
+        d.id === sharingDashboard.id
+          ? { ...d, visibility: isPublic ? "public" : "private" }
+          : d
+      )
+    );
+    setSharingDashboard((prev) =>
+      prev ? { ...prev, visibility: isPublic ? "public" : "private" } : null
+    );
+  };
 
   const DashboardCard = ({ dashboard }: { dashboard: Dashboard }) => (
     <div
@@ -126,38 +253,77 @@ export const DashboardsPage = () => {
         </div>
 
         <div className="flex items-center gap-1">
-          {dashboard.starred && (
-            <Star className="w-4 h-4 text-chart-4 fill-chart-4" />
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={(e) => {
+              e.preventDefault();
+              handleToggleStar(dashboard.id);
+            }}
+          >
+            <Star
+              className={cn(
+                "w-4 h-4",
+                dashboard.starred
+                  ? "text-chart-4 fill-chart-4"
+                  : "text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+              )}
+            />
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => e.preventDefault()}
               >
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  setEditingDashboard(dashboard);
+                }}
+              >
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleDuplicateDashboard(dashboard);
+                }}
+              >
                 <Copy className="w-4 h-4 mr-2" />
                 Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleShareDashboard(dashboard);
+                }}
+              >
+                <Share2 className="w-4 h-4 mr-2" />
+                Share
               </DropdownMenuItem>
               {dashboard.visibility === "public" && (
                 <DropdownMenuItem>
                   <ExternalLink className="w-4 h-4 mr-2" />
-                  Share Link
+                  Open Public Link
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive"
                 disabled={dashboard.isMain}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleDeleteDashboard(dashboard.id);
+                }}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
@@ -206,10 +372,7 @@ export const DashboardsPage = () => {
   );
 
   const DashboardRow = ({ dashboard }: { dashboard: Dashboard }) => (
-    <Link
-      to={`/dashboards/${dashboard.id}`}
-      className="group flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors border-b border-border/60 last:border-b-0"
-    >
+    <div className="group flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors border-b border-border/60 last:border-b-0">
       <div
         className={cn(
           "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
@@ -224,7 +387,7 @@ export const DashboardsPage = () => {
         />
       </div>
 
-      <div className="flex-1 min-w-0">
+      <Link to={`/dashboards/${dashboard.id}`} className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="font-medium text-foreground group-hover:text-primary transition-colors truncate">
             {dashboard.name}
@@ -234,16 +397,13 @@ export const DashboardsPage = () => {
               Main
             </Badge>
           )}
-          {dashboard.starred && (
-            <Star className="w-3.5 h-3.5 text-chart-4 fill-chart-4" />
-          )}
         </div>
         {dashboard.description && (
           <p className="text-sm text-muted-foreground truncate">
             {dashboard.description}
           </p>
         )}
-      </div>
+      </Link>
 
       <div className="hidden md:block text-sm text-muted-foreground">
         {dashboard.insightCount} insights
@@ -268,37 +428,53 @@ export const DashboardsPage = () => {
         {dashboard.updatedAt}
       </div>
 
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        onClick={() => handleToggleStar(dashboard.id)}
+      >
+        <Star
+          className={cn(
+            "w-4 h-4",
+            dashboard.starred
+              ? "text-chart-4 fill-chart-4"
+              : "text-muted-foreground"
+          )}
+        />
+      </Button>
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            onClick={(e) => e.preventDefault()}
-          >
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
             <MoreHorizontal className="w-4 h-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setEditingDashboard(dashboard)}>
             <Edit className="w-4 h-4 mr-2" />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleDuplicateDashboard(dashboard)}>
             <Copy className="w-4 h-4 mr-2" />
             Duplicate
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleShareDashboard(dashboard)}>
+            <Share2 className="w-4 h-4 mr-2" />
+            Share
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive"
             disabled={dashboard.isMain}
+            onClick={() => handleDeleteDashboard(dashboard.id)}
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </Link>
+    </div>
   );
 
   return (
@@ -311,7 +487,7 @@ export const DashboardsPage = () => {
             {dashboards.length} dashboards
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
           New Dashboard
         </Button>
@@ -365,7 +541,7 @@ export const DashboardsPage = () => {
                 : "Create your first dashboard to organize your insights"}
             </p>
             {!searchQuery && (
-              <Button>
+              <Button onClick={() => setCreateDialogOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Dashboard
               </Button>
@@ -391,6 +567,32 @@ export const DashboardsPage = () => {
           </div>
         )}
       </div>
+
+      {/* Create Dashboard Dialog */}
+      <CreateDashboardDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onSave={handleCreateDashboard}
+      />
+
+      {/* Edit Dashboard Dialog */}
+      <CreateDashboardDialog
+        open={!!editingDashboard}
+        onOpenChange={(open) => !open && setEditingDashboard(null)}
+        onSave={handleEditDashboard}
+        editingDashboard={editingDashboard}
+      />
+
+      {/* Share Dashboard Dialog */}
+      {sharingDashboard && (
+        <ShareDashboardDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          dashboardName={sharingDashboard.name}
+          isPublic={sharingDashboard.visibility === "public"}
+          onVisibilityChange={handleVisibilityChange}
+        />
+      )}
     </div>
   );
 };
