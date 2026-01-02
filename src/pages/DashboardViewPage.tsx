@@ -9,14 +9,16 @@ import {
   MoreHorizontal,
   Filter,
   Calendar,
-  ChevronRight,
   Sparkles,
   Trash2,
-  Move,
   LayoutDashboard,
+  RefreshCw,
 } from "lucide-react";
-import { ChartCard } from "@/components/dashboard/ChartCard";
+import { EnhancedChartCard } from "@/components/dashboard/EnhancedChartCard";
 import { AIChatPanel } from "@/components/dashboard/AIChatPanel";
+import { AddInsightDialog } from "@/components/dashboard/AddInsightDialog";
+import { DashboardSettingsDialog } from "@/components/dashboard/DashboardSettingsDialog";
+import { ShareDashboardDialog } from "@/components/dashboard/ShareDashboardDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -25,12 +27,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ChartType } from "@/components/workflow/types";
 
-const INITIAL_CHARTS = [
+interface DashboardChart {
+  id: string;
+  title: string;
+  type: ChartType;
+  data: any[];
+  colorScheme?: string;
+}
+
+const INITIAL_CHARTS: DashboardChart[] = [
   {
     id: "1",
     title: "Monthly Revenue",
-    type: "line" as const,
+    type: "line",
     data: [
       { name: "Jan", value: 4000 },
       { name: "Feb", value: 3000 },
@@ -43,7 +54,7 @@ const INITIAL_CHARTS = [
   {
     id: "2",
     title: "Sales by Category",
-    type: "pie" as const,
+    type: "donut",
     data: [
       { name: "Electronics", value: 35 },
       { name: "Clothing", value: 25 },
@@ -55,13 +66,19 @@ const INITIAL_CHARTS = [
   {
     id: "3",
     title: "Quarterly Comparison",
-    type: "bar" as const,
+    type: "bar",
     data: [
       { name: "Q1", value: 12000 },
       { name: "Q2", value: 15000 },
       { name: "Q3", value: 18000 },
       { name: "Q4", value: 22000 },
     ],
+  },
+  {
+    id: "4",
+    title: "Total Revenue",
+    type: "kpi",
+    data: [{ value: 67000, change: 12.5 }],
   },
 ];
 
@@ -74,37 +91,71 @@ const dashboardNames: Record<string, string> = {
 
 export const DashboardViewPage = () => {
   const { id } = useParams();
-  const [charts, setCharts] = useState(INITIAL_CHARTS);
+  const [charts, setCharts] = useState<DashboardChart[]>(INITIAL_CHARTS);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [addInsightOpen, setAddInsightOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [expandedCharts, setExpandedCharts] = useState<Set<string>>(new Set());
+  const [isPublic, setIsPublic] = useState(false);
   const { toast } = useToast();
 
   const dashboardName = dashboardNames[id || "main"] || "Dashboard";
 
+  const [settings, setSettings] = useState({
+    name: dashboardName,
+    description: "Dashboard description",
+    visibility: "private" as const,
+    color: "blue",
+    autoRefresh: false,
+    refreshInterval: 60,
+    layout: "grid" as const,
+  });
+
   const handleSaveChart = (chart: any) => {
-    const newChart = {
+    const newChart: DashboardChart = {
       id: Date.now().toString(),
-      title:
-        chart.type === "pie"
-          ? "Category Distribution"
-          : chart.type === "line"
-          ? "Trend Analysis"
-          : "Comparison Chart",
+      title: chart.type === "pie" ? "Category Distribution" : "New Insight",
       type: chart.type,
       data: chart.data,
     };
     setCharts((prev) => [...prev, newChart]);
-    toast({
-      title: "Chart saved to dashboard",
-      description: "Your visualization has been added",
-    });
+    toast({ title: "Chart added", description: "Insight saved to dashboard" });
   };
 
   const handleDeleteChart = (chartId: string) => {
     setCharts((prev) => prev.filter((c) => c.id !== chartId));
-    toast({
-      title: "Chart removed",
-      description: "The chart has been deleted from your dashboard",
+    toast({ title: "Chart removed" });
+  };
+
+  const handleUpdateChart = (chartId: string, updates: Partial<DashboardChart>) => {
+    setCharts((prev) =>
+      prev.map((c) => (c.id === chartId ? { ...c, ...updates } : c))
+    );
+  };
+
+  const handleToggleExpand = (chartId: string) => {
+    setExpandedCharts((prev) => {
+      const next = new Set(prev);
+      if (next.has(chartId)) next.delete(chartId);
+      else next.add(chartId);
+      return next;
     });
+  };
+
+  const handleAddInsight = (insight: any) => {
+    const newChart: DashboardChart = {
+      id: Date.now().toString(),
+      title: insight.name,
+      type: insight.type,
+      data: [
+        { name: "A", value: 100 },
+        { name: "B", value: 200 },
+        { name: "C", value: 150 },
+      ],
+    };
+    setCharts((prev) => [...prev, newChart]);
+    toast({ title: "Insight added" });
   };
 
   return (
@@ -120,21 +171,21 @@ export const DashboardViewPage = () => {
           </Button>
           <div className="h-6 w-px bg-border" />
           <div>
-            <h1 className="text-xl font-semibold text-foreground">{dashboardName}</h1>
+            <h1 className="text-xl font-semibold text-foreground">{settings.name}</h1>
             <p className="text-sm text-muted-foreground">{charts.length} insights</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setAddInsightOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Insight
+          </Button>
           <Button variant="outline" size="sm">
             <Filter className="w-4 h-4 mr-2" />
             Filters
           </Button>
-          <Button variant="outline" size="sm">
-            <Calendar className="w-4 h-4 mr-2" />
-            Date Range
-          </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
             <Share2 className="w-4 h-4 mr-2" />
             Share
           </Button>
@@ -147,24 +198,9 @@ export const DashboardViewPage = () => {
             <Sparkles className="w-4 h-4 mr-2" />
             AI Agent
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9">
-                <MoreHorizontal className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <Settings className="w-4 h-4 mr-2" />
-                Dashboard Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Dashboard
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setSettingsOpen(true)}>
+            <Settings className="w-4 h-4" />
+          </Button>
         </div>
       </header>
 
@@ -183,16 +219,11 @@ export const DashboardViewPage = () => {
                 Add insights from your library or create new ones with the AI Agent.
               </p>
               <div className="flex items-center gap-3">
-                <Button variant="outline" asChild>
-                  <Link to="/insights">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add from Library
-                  </Link>
+                <Button variant="outline" onClick={() => setAddInsightOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Insight
                 </Button>
-                <Button
-                  onClick={() => setIsChatOpen(true)}
-                  className="bg-gradient-ai shadow-glow-ai hover:opacity-90"
-                >
+                <Button onClick={() => setIsChatOpen(true)} className="bg-gradient-ai shadow-glow-ai hover:opacity-90">
                   <Sparkles className="w-4 h-4 mr-2" />
                   Create with AI
                 </Button>
@@ -206,19 +237,23 @@ export const DashboardViewPage = () => {
                   className="animate-slide-up"
                   style={{ animationDelay: `${index * 80}ms` }}
                 >
-                  <ChartCard
+                  <EnhancedChartCard
                     id={chart.id}
                     title={chart.title}
                     type={chart.type}
                     data={chart.data}
+                    colorScheme={chart.colorScheme}
                     onDelete={handleDeleteChart}
+                    onUpdate={handleUpdateChart}
+                    isExpanded={expandedCharts.has(chart.id)}
+                    onToggleExpand={handleToggleExpand}
                   />
                 </div>
               ))}
 
               {/* Add Insight Placeholder */}
-              <Link
-                to="/insights"
+              <button
+                onClick={() => setAddInsightOpen(true)}
                 className="min-h-[320px] border-2 border-dashed border-border/60 rounded-2xl flex flex-col items-center justify-center gap-4 text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-accent/30 transition-all duration-300"
               >
                 <div className="w-14 h-14 bg-muted rounded-xl flex items-center justify-center">
@@ -228,7 +263,7 @@ export const DashboardViewPage = () => {
                   <span className="font-semibold block">Add Insight</span>
                   <span className="text-sm">From library or create new</span>
                 </div>
-              </Link>
+              </button>
             </div>
           )}
         </div>
@@ -240,6 +275,29 @@ export const DashboardViewPage = () => {
           </div>
         )}
       </div>
+
+      {/* Dialogs */}
+      <AddInsightDialog
+        open={addInsightOpen}
+        onOpenChange={setAddInsightOpen}
+        onAddInsight={handleAddInsight}
+      />
+
+      <DashboardSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        settings={settings}
+        onSave={setSettings}
+        onDelete={() => toast({ title: "Dashboard deleted" })}
+      />
+
+      <ShareDashboardDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        dashboardName={settings.name}
+        isPublic={isPublic}
+        onVisibilityChange={setIsPublic}
+      />
     </div>
   );
 };
