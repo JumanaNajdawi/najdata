@@ -184,11 +184,11 @@ export const VisualizationStep = ({
         {/* Preview Content */}
         <div className="flex-1 p-6 overflow-auto bg-gradient-surface">
           <Card className="h-full p-6 bg-card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-foreground">
-                {vizConfig.chartTitle || "Chart Preview"}
-              </h3>
-              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "preview" | "settings")}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-foreground">
+                  {vizConfig.chartTitle || "Chart Preview"}
+                </h3>
                 <TabsList className="h-8">
                   <TabsTrigger value="preview" className="text-xs h-7 px-3">
                     <Eye className="w-3 h-3 mr-1.5" />
@@ -199,24 +199,24 @@ export const VisualizationStep = ({
                     Settings
                   </TabsTrigger>
                 </TabsList>
-              </Tabs>
-            </div>
-
-            <TabsContent value="preview" className="mt-0">
-              {renderVisualization()}
-            </TabsContent>
-
-            <TabsContent value="settings" className="mt-0 lg:hidden">
-              <div className="max-w-md mx-auto">
-                <SQLVisualizationPanel
-                  chartType={chartType}
-                  onChartTypeChange={setChartType}
-                  config={vizConfig}
-                  onConfigChange={setVizConfig}
-                  columns={columns}
-                />
               </div>
-            </TabsContent>
+
+              <TabsContent value="preview" className="mt-0">
+                {renderVisualization()}
+              </TabsContent>
+
+              <TabsContent value="settings" className="mt-0 lg:hidden">
+                <div className="max-w-md mx-auto">
+                  <SQLVisualizationPanel
+                    chartType={chartType}
+                    onChartTypeChange={setChartType}
+                    config={vizConfig}
+                    onConfigChange={setVizConfig}
+                    columns={columns}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
           </Card>
         </div>
       </div>
