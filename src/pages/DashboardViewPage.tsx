@@ -102,14 +102,22 @@ export const DashboardViewPage = () => {
 
   const dashboardName = dashboardNames[id || "main"] || "Dashboard";
 
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<{
+    name: string;
+    description?: string;
+    visibility: "private" | "public";
+    color: string;
+    autoRefresh: boolean;
+    refreshInterval: number;
+    layout: "grid" | "masonry" | "freeform";
+  }>({
     name: dashboardName,
     description: "Dashboard description",
-    visibility: "private" as const,
+    visibility: "private",
     color: "blue",
     autoRefresh: false,
     refreshInterval: 60,
-    layout: "grid" as const,
+    layout: "grid",
   });
 
   const handleSaveChart = (chart: any) => {
