@@ -12,17 +12,19 @@ import {
   ChevronRight,
   Copy,
   Check,
-  PanelRightClose,
-  PanelRight,
+  Palette,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { SavedQueriesPanel, SavedQuery } from "@/components/sql/SavedQueriesPanel";
-import { SQLVisualizationPanel, VisualizationConfig } from "@/components/sql/SQLVisualizationPanel";
-import { ChartPreview } from "@/components/workflow/ChartPreview";
-import { WorkflowBlock, ChartType } from "@/components/workflow/types";
+import { VisualizationConfig } from "@/components/sql/SQLVisualizationPanel";
+import { ChartType } from "@/components/workflow/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataSourceSelector, DataSourceType } from "@/components/visualization/DataSourceSelector";
+import { VisualizationStep } from "@/components/visualization/VisualizationStep";
+
+type EditorStep = "query" | "select-data" | "visualize";
 
 const SAMPLE_QUERY = `SELECT 
   DATE_TRUNC('month', created_at) as month,
@@ -32,6 +34,14 @@ WHERE status = 'completed'
 GROUP BY month
 ORDER BY month DESC
 LIMIT 6;`;
+
+const SAMPLE_SOURCE_DATA = [
+  { id: 1, user_id: 101, amount: 1500, status: "completed", created_at: "2024-01-15" },
+  { id: 2, user_id: 102, amount: 2300, status: "completed", created_at: "2024-01-20" },
+  { id: 3, user_id: 103, amount: 800, status: "pending", created_at: "2024-02-05" },
+  { id: 4, user_id: 101, amount: 1200, status: "completed", created_at: "2024-02-15" },
+  { id: 5, user_id: 104, amount: 3500, status: "completed", created_at: "2024-03-01" },
+];
 
 const SAMPLE_RESULTS = [
   { month: "Jun 2024", revenue: 5500 },
@@ -69,19 +79,14 @@ export const SQLEditorPage = () => {
   const { toast } = useToast();
   const [insightName, setInsightName] = useState("Untitled SQL Insight");
   const [query, setQuery] = useState(SAMPLE_QUERY);
-  const [hasRun, setHasRun] = useState(true);
-  const [chartType, setChartType] = useState<ChartType | "table">("bar");
+  const [hasRun, setHasRun] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedDb] = useState("Sales DB");
   const [leftPanelTab, setLeftPanelTab] = useState<"schema" | "saved">("schema");
-  const [showRightPanel, setShowRightPanel] = useState(true);
-
-  const [vizConfig, setVizConfig] = useState<VisualizationConfig>({
-    colorScheme: "default",
-    showLegend: true,
-    showGrid: true,
-    showDataLabels: false,
-  });
+  
+  // Step state
+  const [currentStep, setCurrentStep] = useState<EditorStep>("query");
+  const [selectedDataSource, setSelectedDataSource] = useState<DataSourceType | null>(null);
 
   const handleRun = () => {
     setHasRun(true);
@@ -114,58 +119,101 @@ export const SQLEditorPage = () => {
     });
   };
 
-  // Create mock workflow for ChartPreview
-  const mockWorkflow: WorkflowBlock[] = [
-    {
-      id: "viz-1",
-      instanceId: "viz-instance-1",
-      type: `${chartType}-chart`,
-      label: "Chart",
-      icon: "BarChart2",
-      category: "visualize",
-      config: {
-        chartType: chartType === "table" ? "bar" : chartType,
-        colorScheme: vizConfig.colorScheme,
-        showLegend: vizConfig.showLegend,
-        showGrid: vizConfig.showGrid,
-        showDataLabels: vizConfig.showDataLabels,
-        chartTitle: vizConfig.chartTitle,
-        innerRadius: vizConfig.innerRadius,
-        outerRadius: vizConfig.outerRadius,
-        barRadius: vizConfig.barRadius,
-        lineStrokeWidth: vizConfig.lineStrokeWidth,
-        areaOpacity: vizConfig.areaOpacity,
-      },
-    },
-  ];
-
-  const renderChart = () => {
-    if (chartType === "table") {
-      return (
-        <div className="overflow-auto max-h-64">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Month</th>
-                <th className="px-4 py-2 text-right font-medium text-muted-foreground">Revenue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SAMPLE_RESULTS.map((row, i) => (
-                <tr key={i} className="border-b border-border/50 last:border-0">
-                  <td className="px-4 py-2 text-foreground">{row.month}</td>
-                  <td className="px-4 py-2 text-right text-foreground">${row.revenue.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
+  const handleContinueToVisualize = () => {
+    if (!hasRun) {
+      toast({
+        title: "Run the query first",
+        description: "Execute the query to generate data before visualizing.",
+        variant: "destructive",
+      });
+      return;
     }
-
-    return <ChartPreview workflow={mockWorkflow} data={CHART_DATA} />;
+    setCurrentStep("select-data");
   };
 
+  const handleDataSourceContinue = () => {
+    setCurrentStep("visualize");
+  };
+
+  const handleVisualizationSave = (config: {
+    chartType: ChartType | "table";
+    vizConfig: VisualizationConfig;
+    dataSource: DataSourceType;
+  }) => {
+    toast({
+      title: "Insight saved",
+      description: "Added to your Insights library",
+    });
+    navigate("/insights");
+  };
+
+  const getCurrentData = () => {
+    return selectedDataSource === "source" ? SAMPLE_SOURCE_DATA : CHART_DATA;
+  };
+
+  const getCurrentColumns = () => {
+    return selectedDataSource === "source"
+      ? ["id", "user_id", "amount", "status", "created_at"]
+      : ["name", "value"];
+  };
+
+  // Data Source Selection Step
+  if (currentStep === "select-data") {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-14 bg-card/80 backdrop-blur-sm border-b border-border/60 flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => setCurrentStep("query")}>
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <div className="h-5 w-px bg-border" />
+            <span className="text-sm font-medium text-foreground">{insightName}</span>
+          </div>
+        </header>
+        <DataSourceSelector
+          selectedSource={selectedDataSource}
+          onSelectSource={setSelectedDataSource}
+          onContinue={handleDataSourceContinue}
+          sourceRowCount={SAMPLE_SOURCE_DATA.length}
+          resultsRowCount={CHART_DATA.length}
+          sourceColumns={["id", "user_id", "amount", "status", "created_at"]}
+          resultsColumns={["name", "value"]}
+        />
+      </div>
+    );
+  }
+
+  // Visualization Step
+  if (currentStep === "visualize" && selectedDataSource) {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-14 bg-card/80 backdrop-blur-sm border-b border-border/60 flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/insights">
+                <ArrowLeft className="w-4 h-4" />
+              </Link>
+            </Button>
+            <div className="h-5 w-px bg-border" />
+            <Input
+              value={insightName}
+              onChange={(e) => setInsightName(e.target.value)}
+              className="h-8 w-56 text-sm font-medium bg-transparent border-transparent hover:border-border focus:border-border"
+            />
+          </div>
+        </header>
+        <VisualizationStep
+          dataSource={selectedDataSource}
+          data={getCurrentData()}
+          columns={getCurrentColumns()}
+          onBack={() => setCurrentStep("select-data")}
+          onSave={handleVisualizationSave}
+        />
+      </div>
+    );
+  }
+
+  // Query Editor Step (Default)
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -185,21 +233,19 @@ export const SQLEditorPage = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowRightPanel(!showRightPanel)}
-            className="h-8 w-8"
-          >
-            {showRightPanel ? (
-              <PanelRightClose className="w-4 h-4" />
-            ) : (
-              <PanelRight className="w-4 h-4" />
-            )}
-          </Button>
           <Button variant="outline" size="sm" onClick={handleRun}>
             <Play className="w-4 h-4 mr-2" />
             Run Query
+          </Button>
+          <Button 
+            variant={hasRun ? "default" : "outline"} 
+            size="sm" 
+            onClick={handleContinueToVisualize}
+            disabled={!hasRun}
+            className={hasRun ? "bg-gradient-ai shadow-glow-ai hover:opacity-90" : ""}
+          >
+            <Palette className="w-4 h-4 mr-2" />
+            Visualize
           </Button>
           <Button size="sm" onClick={handleSave}>
             <Save className="w-4 h-4 mr-2" />
@@ -331,23 +377,27 @@ export const SQLEditorPage = () => {
                   <span className="text-xs text-muted-foreground">{SAMPLE_RESULTS.length} rows</span>
                 </div>
               </div>
-              <div className="flex-1 p-4 overflow-auto">{renderChart()}</div>
+              <div className="flex-1 p-4 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30">
+                      <th className="px-4 py-2 text-left font-medium text-muted-foreground">Month</th>
+                      <th className="px-4 py-2 text-right font-medium text-muted-foreground">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SAMPLE_RESULTS.map((row, i) => (
+                      <tr key={i} className="border-b border-border/50 last:border-0">
+                        <td className="px-4 py-2 text-foreground">{row.month}</td>
+                        <td className="px-4 py-2 text-right text-foreground">${row.revenue.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </main>
-
-        {/* Right Panel - Visualization Options */}
-        {showRightPanel && (
-          <aside className="w-72 border-l border-border/60 bg-card/50 flex flex-col shrink-0">
-            <SQLVisualizationPanel
-              chartType={chartType}
-              onChartTypeChange={setChartType}
-              config={vizConfig}
-              onConfigChange={setVizConfig}
-              columns={["month", "revenue", "count", "name", "value"]}
-            />
-          </aside>
-        )}
       </div>
     </div>
   );
