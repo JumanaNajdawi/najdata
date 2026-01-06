@@ -156,6 +156,24 @@ export const WorkflowBuilderPage = () => {
     });
   };
 
+  const handleDuplicateBlock = (instanceId: string) => {
+    const blockToDuplicate = workflow.find((b) => b.instanceId === instanceId);
+    if (blockToDuplicate) {
+      const newBlock: WorkflowBlock = {
+        ...blockToDuplicate,
+        instanceId: Date.now().toString(),
+        config: { ...blockToDuplicate.config },
+      };
+      const index = workflow.findIndex((b) => b.instanceId === instanceId);
+      setWorkflow((prev) => {
+        const result = [...prev];
+        result.splice(index + 1, 0, newBlock);
+        return result;
+      });
+      setSelectedBlockId(newBlock.instanceId);
+    }
+  };
+
   const handleRunPreview = () => {
     setHasRun(true);
     toast({
@@ -327,6 +345,8 @@ export const WorkflowBuilderPage = () => {
           onSelectBlock={setSelectedBlockId}
           onRemoveBlock={handleRemoveBlock}
           onReorderBlocks={handleReorderBlocks}
+          onAddBlock={handleAddBlock}
+          onDuplicateBlock={handleDuplicateBlock}
           categoryColors={categoryColors}
           getIcon={getIcon}
         />
