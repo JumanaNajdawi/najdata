@@ -5,11 +5,27 @@ export interface Block {
   icon: string;
   category: "data" | "transform" | "visualize";
   description?: string;
+  inputs?: number;
+  outputs?: number;
+}
+
+export interface Position {
+  x: number;
+  y: number;
+}
+
+export interface Connection {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  sourcePort?: number;
+  targetPort?: number;
 }
 
 export interface WorkflowBlock extends Block {
   instanceId: string;
   config?: BlockConfig;
+  position: Position;
 }
 
 export interface BlockConfig {
@@ -33,37 +49,45 @@ export interface BlockConfig {
   
   limitRows?: number;
   
-  joinTable?: string;
+  // Join config
   joinType?: "inner" | "left" | "right" | "full";
+  joinTable?: string;
+  joinLeftColumn?: string;
+  joinRightColumn?: string;
   joinOnLeft?: string;
   joinOnRight?: string;
   
+  // Pivot config
   pivotRowColumn?: string;
   pivotColumnColumn?: string;
   pivotValueColumn?: string;
   
+  // Formula config
   formulaExpression?: string;
+  formulaOutputColumn?: string;
   formulaResultColumn?: string;
   
+  // Date config
   dateColumn?: string;
-  dateOperation?: "extract_year" | "extract_month" | "extract_day" | "date_diff" | "date_add";
-  dateUnit?: "days" | "months" | "years";
+  dateOperation?: "extract" | "format" | "diff";
+  datePart?: "year" | "month" | "day" | "quarter" | "week";
   
-  // Visualize blocks
+  // Visualization blocks
   chartType?: ChartType;
   xAxis?: string;
   yAxis?: string;
   seriesColumn?: string;
   colorScheme?: string;
+  chartTitle?: string;
   showLegend?: boolean;
   showGrid?: boolean;
+  stacked?: boolean;
   showDataLabels?: boolean;
-  chartTitle?: string;
-  innerRadius?: number;
-  outerRadius?: number;
   barRadius?: number;
   lineStrokeWidth?: number;
   areaOpacity?: number;
+  innerRadius?: number;
+  outerRadius?: number;
 }
 
 export type ChartType = 
@@ -71,65 +95,37 @@ export type ChartType =
   | "line" 
   | "pie" 
   | "area" 
-  | "scatter" 
-  | "donut" 
-  | "gauge" 
-  | "kpi" 
-  | "heatmap" 
-  | "funnel" 
-  | "radar";
+  | "scatter"
+  | "radar"
+  | "donut"
+  | "funnel"
+  | "treemap"
+  | "heatmap"
+  | "composed"
+  | "kpi"
+  | "gauge";
 
 export interface ChartConfig {
   type: ChartType;
   xAxis?: string;
   yAxis?: string;
   seriesColumn?: string;
-  colorScheme: string;
-  showLegend: boolean;
-  showGrid: boolean;
-  showDataLabels: boolean;
+  colorScheme?: string;
   title?: string;
-  innerRadius?: number;
-  outerRadius?: number;
-  barRadius?: number;
-  lineStrokeWidth?: number;
-  areaOpacity?: number;
+  showLegend?: boolean;
+  showGrid?: boolean;
+  stacked?: boolean;
 }
 
 export const COLOR_SCHEMES = {
-  default: [
-    "hsl(230, 84%, 60%)",
-    "hsl(162, 96%, 43%)",
-    "hsl(280, 84%, 60%)",
-    "hsl(35, 92%, 55%)",
-    "hsl(350, 84%, 60%)",
-  ],
-  ocean: [
-    "hsl(200, 80%, 50%)",
-    "hsl(180, 70%, 45%)",
-    "hsl(220, 75%, 55%)",
-    "hsl(190, 85%, 40%)",
-    "hsl(210, 90%, 60%)",
-  ],
-  sunset: [
-    "hsl(25, 90%, 55%)",
-    "hsl(45, 95%, 50%)",
-    "hsl(5, 85%, 55%)",
-    "hsl(35, 88%, 48%)",
-    "hsl(15, 92%, 52%)",
-  ],
-  forest: [
-    "hsl(130, 60%, 40%)",
-    "hsl(150, 55%, 45%)",
-    "hsl(110, 50%, 50%)",
-    "hsl(170, 65%, 35%)",
-    "hsl(140, 58%, 42%)",
-  ],
-  monochrome: [
-    "hsl(220, 15%, 25%)",
-    "hsl(220, 15%, 40%)",
-    "hsl(220, 15%, 55%)",
-    "hsl(220, 15%, 70%)",
-    "hsl(220, 15%, 85%)",
-  ],
+  default: ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"],
+  ocean: ["#0077b6", "#00b4d8", "#90e0ef", "#caf0f8", "#03045e"],
+  sunset: ["#ff6b6b", "#feca57", "#ff9ff3", "#54a0ff", "#5f27cd"],
+  forest: ["#2d6a4f", "#40916c", "#52b788", "#74c69d", "#95d5b2"],
+  monochrome: ["#212529", "#495057", "#6c757d", "#adb5bd", "#dee2e6"],
 };
+
+export interface WorkflowState {
+  blocks: WorkflowBlock[];
+  connections: Connection[];
+}

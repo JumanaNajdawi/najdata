@@ -56,6 +56,7 @@ export const VisualizationStep = ({
       label: "Chart",
       icon: "BarChart2",
       category: "visualize",
+      position: { x: 0, y: 0 },
       config: {
         chartType: chartType === "table" ? "bar" : chartType,
         colorScheme: vizConfig.colorScheme,

@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Block, WorkflowBlock, BlockConfig, ChartType } from "@/components/workflow/types";
+import { Block, WorkflowBlock, BlockConfig, ChartType, Connection, Position } from "@/components/workflow/types";
 import { BlockPalette } from "@/components/workflow/BlockPalette";
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
 import { BlockConfigPanel } from "@/components/workflow/BlockConfigPanel";
@@ -53,7 +53,7 @@ const AVAILABLE_BLOCKS: Block[] = [
   { id: "sort", type: "sort", label: "Sort", icon: "ArrowDownUp", category: "transform", description: "Sort data by column" },
   { id: "calculate", type: "calculate", label: "Aggregate", icon: "Calculator", category: "transform", description: "Apply aggregate functions" },
   { id: "limit", type: "limit", label: "Limit", icon: "Hash", category: "transform", description: "Limit number of rows" },
-  { id: "join", type: "join", label: "Join", icon: "Merge", category: "transform", description: "Join with another table" },
+  { id: "join", type: "join", label: "Join", icon: "Merge", category: "transform", description: "Join with another table", inputs: 2 },
   { id: "pivot", type: "pivot", label: "Pivot", icon: "FlipVertical2", category: "transform", description: "Pivot table transformation" },
   { id: "formula", type: "formula", label: "Formula", icon: "FunctionSquare", category: "transform", description: "Create calculated columns" },
   { id: "date", type: "date", label: "Date Ops", icon: "Calendar", category: "transform", description: "Date transformations" },
@@ -114,20 +114,30 @@ export const WorkflowBuilderPage = () => {
   const [selectedDataSource, setSelectedDataSource] = useState<DataSourceType | null>(null);
   const [hasRun, setHasRun] = useState(false);
   
+  // Workflow state with positions
   const [workflow, setWorkflow] = useState<WorkflowBlock[]>([
-    { ...AVAILABLE_BLOCKS[0], instanceId: "1", config: { database: "Sales DB" } },
-    { ...AVAILABLE_BLOCKS[1], instanceId: "2", config: { table: "orders" } },
-    { ...AVAILABLE_BLOCKS[4], instanceId: "3", config: { groupByColumns: ["month"] } },
-    { ...AVAILABLE_BLOCKS[6], instanceId: "4", config: { aggregateFunction: "SUM", aggregateColumn: "revenue" } },
+    { ...AVAILABLE_BLOCKS[0], instanceId: "1", position: { x: 100, y: 100 }, config: { database: "Sales DB" } },
+    { ...AVAILABLE_BLOCKS[1], instanceId: "2", position: { x: 100, y: 220 }, config: { table: "orders" } },
+    { ...AVAILABLE_BLOCKS[4], instanceId: "3", position: { x: 100, y: 340 }, config: { groupByColumns: ["month"] } },
+    { ...AVAILABLE_BLOCKS[6], instanceId: "4", position: { x: 100, y: 460 }, config: { aggregateFunction: "SUM", aggregateColumn: "revenue" } },
   ]);
+  
+  // Connections between blocks
+  const [connections, setConnections] = useState<Connection[]>([
+    { id: "conn-1", sourceId: "1", targetId: "2" },
+    { id: "conn-2", sourceId: "2", targetId: "3" },
+    { id: "conn-3", sourceId: "3", targetId: "4" },
+  ]);
+  
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 
   const selectedBlock = workflow.find((b) => b.instanceId === selectedBlockId);
 
-  const handleAddBlock = (block: Block) => {
+  const handleAddBlock = (block: Block, position?: Position) => {
     const newBlock: WorkflowBlock = {
       ...block,
       instanceId: Date.now().toString(),
+      position: position || { x: 100 + workflow.length * 20, y: 100 + workflow.length * 120 },
       config: {},
     };
     setWorkflow((prev) => [...prev, newBlock]);
@@ -136,6 +146,7 @@ export const WorkflowBuilderPage = () => {
 
   const handleRemoveBlock = (instanceId: string) => {
     setWorkflow((prev) => prev.filter((b) => b.instanceId !== instanceId));
+    setConnections((prev) => prev.filter((c) => c.sourceId !== instanceId && c.targetId !== instanceId));
     if (selectedBlockId === instanceId) {
       setSelectedBlockId(null);
     }
@@ -147,13 +158,23 @@ export const WorkflowBuilderPage = () => {
     );
   };
 
-  const handleReorderBlocks = (startIndex: number, endIndex: number) => {
-    setWorkflow((prev) => {
-      const result = [...prev];
-      const [removed] = result.splice(startIndex, 1);
-      result.splice(endIndex, 0, removed);
-      return result;
-    });
+  const handleUpdateBlockPosition = (instanceId: string, position: Position) => {
+    setWorkflow((prev) =>
+      prev.map((b) => (b.instanceId === instanceId ? { ...b, position } : b))
+    );
+  };
+
+  const handleAddConnection = (sourceId: string, targetId: string) => {
+    const newConnection: Connection = {
+      id: `conn-${Date.now()}`,
+      sourceId,
+      targetId,
+    };
+    setConnections((prev) => [...prev, newConnection]);
+  };
+
+  const handleRemoveConnection = (connectionId: string) => {
+    setConnections((prev) => prev.filter((c) => c.id !== connectionId));
   };
 
   const handleDuplicateBlock = (instanceId: string) => {
@@ -162,14 +183,13 @@ export const WorkflowBuilderPage = () => {
       const newBlock: WorkflowBlock = {
         ...blockToDuplicate,
         instanceId: Date.now().toString(),
+        position: { 
+          x: blockToDuplicate.position.x + 40, 
+          y: blockToDuplicate.position.y + 40 
+        },
         config: { ...blockToDuplicate.config },
       };
-      const index = workflow.findIndex((b) => b.instanceId === instanceId);
-      setWorkflow((prev) => {
-        const result = [...prev];
-        result.splice(index + 1, 0, newBlock);
-        return result;
-      });
+      setWorkflow((prev) => [...prev, newBlock]);
       setSelectedBlockId(newBlock.instanceId);
     }
   };
@@ -182,11 +202,11 @@ export const WorkflowBuilderPage = () => {
     });
   };
 
-  const handleContinueToVisualize = () => {
+  const handleContinueFromBuilder = () => {
     if (!hasRun) {
       toast({
         title: "Run the workflow first",
-        description: "Execute the workflow to generate data before visualizing.",
+        description: "Please run the workflow before continuing to visualization.",
         variant: "destructive",
       });
       return;
@@ -194,137 +214,130 @@ export const WorkflowBuilderPage = () => {
     setCurrentStep("select-data");
   };
 
-  const handleDataSourceContinue = () => {
-    setCurrentStep("visualize");
+  const handleDataSourceSelect = (source: DataSourceType) => {
+    setSelectedDataSource(source);
   };
 
-  const handleVisualizationSave = (config: {
-    chartType: ChartType | "table";
-    vizConfig: VisualizationConfig;
-    dataSource: DataSourceType;
-  }) => {
-    toast({
-      title: "Insight saved",
-      description: "Added to your Insights library",
-    });
-    navigate("/insights");
+  const handleContinueToVisualize = () => {
+    if (selectedDataSource) {
+      setCurrentStep("visualize");
+    }
   };
 
-  const handleSave = () => {
+  const handleBackToBuilder = () => {
+    setCurrentStep("build");
+    setSelectedDataSource(null);
+  };
+
+  const handleBackToDataSelect = () => {
+    setCurrentStep("select-data");
+  };
+
+  const handleSave = (config?: any) => {
     toast({
       title: "Insight saved",
-      description: "Added to your Insights library",
+      description: `"${insightName}" has been saved successfully.`,
     });
     navigate("/insights");
   };
 
   const getIcon = (iconName: string) => {
-    return ICON_MAP[iconName] || BarChart2;
+    return ICON_MAP[iconName] || Database;
   };
 
-  const getCurrentData = () => {
-    return selectedDataSource === "source" ? SAMPLE_SOURCE_DATA : SAMPLE_RESULTS_DATA;
+  // Get the correct data based on selection
+  const getVisualizationData = () => {
+    if (selectedDataSource === "source") {
+      return SAMPLE_SOURCE_DATA;
+    }
+    return SAMPLE_RESULTS_DATA;
   };
 
-  const getCurrentColumns = () => {
-    return selectedDataSource === "source"
-      ? ["id", "user_id", "amount", "status", "created_at"]
-      : ["name", "value"];
-  };
-
-  // Data Source Selection Step
+  // Data source selection step
   if (currentStep === "select-data") {
     return (
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 bg-card/80 backdrop-blur-sm border-b border-border/60 flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => setCurrentStep("build")}>
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <div className="h-5 w-px bg-border" />
-            <span className="text-sm font-medium text-foreground">{insightName}</span>
-          </div>
-        </header>
-        <DataSourceSelector
-          selectedSource={selectedDataSource}
-          onSelectSource={setSelectedDataSource}
-          onContinue={handleDataSourceContinue}
-          sourceRowCount={SAMPLE_SOURCE_DATA.length}
-          resultsRowCount={SAMPLE_RESULTS_DATA.length}
-          sourceColumns={["id", "user_id", "amount", "status", "created_at"]}
-          resultsColumns={["name", "value"]}
-        />
-      </div>
-    );
-  }
-
-  // Visualization Step
-  if (currentStep === "visualize" && selectedDataSource) {
-    return (
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 bg-card/80 backdrop-blur-sm border-b border-border/60 flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/insights">
-                <ArrowLeft className="w-4 h-4" />
-              </Link>
-            </Button>
-            <div className="h-5 w-px bg-border" />
-            <Input
-              value={insightName}
-              onChange={(e) => setInsightName(e.target.value)}
-              className="h-8 w-56 text-sm font-medium bg-transparent border-transparent hover:border-border focus:border-border"
-            />
-          </div>
-        </header>
-        <VisualizationStep
-          dataSource={selectedDataSource}
-          data={getCurrentData()}
-          columns={getCurrentColumns()}
-          onBack={() => setCurrentStep("select-data")}
-          onSave={handleVisualizationSave}
-        />
-      </div>
-    );
-  }
-
-  // Build Step (Default)
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="h-14 bg-card/80 backdrop-blur-sm border-b border-border/60 flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/insights">
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="h-14 border-b border-border/60 bg-card/50 flex items-center px-4 gap-4 shrink-0">
+          <Button variant="ghost" size="sm" onClick={handleBackToBuilder}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Builder
           </Button>
-          <div className="h-5 w-px bg-border" />
+          <div className="h-4 w-px bg-border" />
           <Input
             value={insightName}
             onChange={(e) => setInsightName(e.target.value)}
-            className="h-8 w-56 text-sm font-medium bg-transparent border-transparent hover:border-border focus:border-border"
+            className="text-lg font-semibold border-0 bg-transparent focus-visible:ring-0 px-0 w-auto max-w-xs"
           />
-        </div>
+        </header>
+        <DataSourceSelector
+          selectedSource={selectedDataSource}
+          onSelectSource={handleDataSourceSelect}
+          onContinue={handleContinueToVisualize}
+          sourceRowCount={SAMPLE_SOURCE_DATA.length}
+          resultsRowCount={SAMPLE_RESULTS_DATA.length}
+        />
+      </div>
+    );
+  }
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleRunPreview}>
-            <Play className="w-4 h-4 mr-2" />
-            Run Preview
-          </Button>
-          <Button 
-            variant={hasRun ? "default" : "outline"} 
-            size="sm" 
-            onClick={handleContinueToVisualize}
-            disabled={!hasRun}
-            className={hasRun ? "bg-gradient-ai shadow-glow-ai hover:opacity-90" : ""}
-          >
-            <Palette className="w-4 h-4 mr-2" />
-            Visualize
-          </Button>
-          <Button size="sm" onClick={handleSave}>
+  // Visualization step
+  if (currentStep === "visualize") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="h-14 border-b border-border/60 bg-card/50 flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={handleBackToDataSelect}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+            <div className="h-4 w-px bg-border" />
+            <Input
+              value={insightName}
+              onChange={(e) => setInsightName(e.target.value)}
+              className="text-lg font-semibold border-0 bg-transparent focus-visible:ring-0 px-0 w-auto max-w-xs"
+            />
+          </div>
+          <Button onClick={handleSave}>
             <Save className="w-4 h-4 mr-2" />
             Save Insight
+          </Button>
+        </header>
+        <VisualizationStep
+          dataSource={selectedDataSource || "results"}
+          data={getVisualizationData()}
+          columns={selectedDataSource === "source" ? Object.keys(SAMPLE_SOURCE_DATA[0]) : Object.keys(SAMPLE_RESULTS_DATA[0])}
+          onBack={handleBackToDataSelect}
+          onSave={handleSave}
+        />
+      </div>
+    );
+  }
+
+  // Build step (default)
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="h-14 border-b border-border/60 bg-card/50 flex items-center justify-between px-4 shrink-0">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/insights">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Cancel
+            </Link>
+          </Button>
+          <div className="h-4 w-px bg-border" />
+          <Input
+            value={insightName}
+            onChange={(e) => setInsightName(e.target.value)}
+            className="text-lg font-semibold border-0 bg-transparent focus-visible:ring-0 px-0 w-auto max-w-xs"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleRunPreview}>
+            <Play className="w-4 h-4 mr-2" />
+            Run
+          </Button>
+          <Button onClick={handleContinueFromBuilder} disabled={!hasRun}>
+            Continue to Visualize
           </Button>
         </div>
       </header>
@@ -333,7 +346,7 @@ export const WorkflowBuilderPage = () => {
         {/* Block Palette */}
         <BlockPalette
           blocks={AVAILABLE_BLOCKS}
-          onAddBlock={handleAddBlock}
+          onAddBlock={(block) => handleAddBlock(block)}
           categoryColors={categoryColors}
           getIcon={getIcon}
         />
@@ -341,11 +354,14 @@ export const WorkflowBuilderPage = () => {
         {/* Canvas */}
         <WorkflowCanvas
           workflow={workflow}
+          connections={connections}
           selectedBlockId={selectedBlockId}
           onSelectBlock={setSelectedBlockId}
           onRemoveBlock={handleRemoveBlock}
-          onReorderBlocks={handleReorderBlocks}
+          onUpdateBlockPosition={handleUpdateBlockPosition}
           onAddBlock={handleAddBlock}
+          onAddConnection={handleAddConnection}
+          onRemoveConnection={handleRemoveConnection}
           onDuplicateBlock={handleDuplicateBlock}
           categoryColors={categoryColors}
           getIcon={getIcon}

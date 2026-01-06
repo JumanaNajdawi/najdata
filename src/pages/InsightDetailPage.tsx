@@ -175,6 +175,7 @@ export const InsightDetailPage = () => {
       label: insight.name,
       icon: "BarChart2",
       category: "visualize",
+      position: { x: 0, y: 0 },
       config: {
         chartType: insight.chartType,
         ...insight.config,
