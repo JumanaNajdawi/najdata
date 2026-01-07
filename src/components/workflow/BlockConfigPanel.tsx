@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import { WorkflowBlock, BlockConfig, COLOR_SCHEMES } from "./types";
 
 interface BlockConfigPanelProps {
@@ -21,99 +22,184 @@ interface BlockConfigPanelProps {
   onClose: () => void;
 }
 
+// Mock data - in real app this would come from API
 const SAMPLE_DATABASES = ["Sales DB", "Marketing DB", "Finance DB", "HR DB"];
-const SAMPLE_TABLES = ["orders", "customers", "products", "transactions", "users"];
-const SAMPLE_COLUMNS = ["id", "name", "amount", "date", "category", "region", "revenue", "quantity"];
+
+const DATABASE_TABLES: Record<string, string[]> = {
+  "Sales DB": ["orders", "customers", "products", "transactions"],
+  "Marketing DB": ["campaigns", "leads", "conversions", "channels"],
+  "Finance DB": ["invoices", "payments", "accounts", "budgets"],
+  "HR DB": ["employees", "departments", "salaries", "attendance"],
+};
+
+const TABLE_COLUMNS: Record<string, string[]> = {
+  orders: ["id", "customer_id", "amount", "status", "created_at", "region"],
+  customers: ["id", "name", "email", "phone", "address", "segment"],
+  products: ["id", "name", "price", "category", "stock", "sku"],
+  transactions: ["id", "order_id", "amount", "type", "date", "method"],
+  campaigns: ["id", "name", "budget", "start_date", "end_date", "status"],
+  leads: ["id", "name", "email", "source", "score", "created_at"],
+  conversions: ["id", "lead_id", "campaign_id", "value", "date"],
+  channels: ["id", "name", "type", "cost", "impressions", "clicks"],
+  invoices: ["id", "customer_id", "amount", "due_date", "status", "paid_at"],
+  payments: ["id", "invoice_id", "amount", "method", "date", "reference"],
+  accounts: ["id", "name", "type", "balance", "currency", "created_at"],
+  budgets: ["id", "department", "year", "amount", "spent", "remaining"],
+  employees: ["id", "name", "email", "department", "position", "hire_date"],
+  departments: ["id", "name", "manager_id", "budget", "headcount"],
+  salaries: ["id", "employee_id", "amount", "currency", "effective_date"],
+  attendance: ["id", "employee_id", "date", "check_in", "check_out", "hours"],
+};
 
 export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelProps) => {
   const [config, setConfig] = useState<BlockConfig>(block.config || {});
 
+  // Reset dependent fields when parent changes
+  useEffect(() => {
+    setConfig(block.config || {});
+  }, [block.instanceId]);
+
   const handleChange = (key: keyof BlockConfig, value: any) => {
     const newConfig = { ...config, [key]: value };
+    
+    // Clear dependent fields when parent changes
+    if (key === "database") {
+      newConfig.table = undefined;
+      newConfig.columns = undefined;
+    }
+    if (key === "table") {
+      newConfig.columns = undefined;
+    }
+    
     setConfig(newConfig);
     onUpdate(block.instanceId, newConfig);
   };
 
-  const renderDataConfig = () => {
-    switch (block.type) {
-      case "database":
-        return (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Select Database</Label>
-              <Select
-                value={config.database}
-                onValueChange={(v) => handleChange("database", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose database..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {SAMPLE_DATABASES.map((db) => (
-                    <SelectItem key={db} value={db}>{db}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        );
-      
-      case "table":
-        return (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Select Table</Label>
-              <Select
-                value={config.table}
-                onValueChange={(v) => handleChange("table", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose table..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {SAMPLE_TABLES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        );
+  const getTablesForDatabase = () => {
+    return config.database ? DATABASE_TABLES[config.database] || [] : [];
+  };
 
-      case "column":
-        return (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Select Columns</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {SAMPLE_COLUMNS.map((col) => (
-                  <label key={col} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={config.columns?.includes(col) || false}
-                      onChange={(e) => {
-                        const current = config.columns || [];
-                        const newCols = e.target.checked
-                          ? [...current, col]
-                          : current.filter((c) => c !== col);
-                        handleChange("columns", newCols);
-                      }}
-                      className="rounded border-border"
-                    />
-                    {col}
-                  </label>
+  const getColumnsForTable = () => {
+    return config.table ? TABLE_COLUMNS[config.table] || [] : [];
+  };
+
+  const handleColumnToggle = (column: string, checked: boolean) => {
+    const currentColumns = config.columns || [];
+    const newColumns = checked
+      ? [...currentColumns, column]
+      : currentColumns.filter((c) => c !== column);
+    handleChange("columns", newColumns);
+  };
+
+  const handleSelectAllColumns = () => {
+    const allColumns = getColumnsForTable();
+    handleChange("columns", allColumns);
+  };
+
+  const handleClearColumns = () => {
+    handleChange("columns", []);
+  };
+
+  const renderDatabaseConfig = () => {
+    const tables = getTablesForDatabase();
+    const columns = getColumnsForTable();
+    const selectedColumns = config.columns || [];
+
+    return (
+      <div className="space-y-5">
+        {/* Database Selection */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">1. Select Database</Label>
+          <Select
+            value={config.database}
+            onValueChange={(v) => handleChange("database", v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Choose database..." />
+            </SelectTrigger>
+            <SelectContent>
+              {SAMPLE_DATABASES.map((db) => (
+                <SelectItem key={db} value={db}>{db}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Table Selection - only show if database is selected */}
+        {config.database && (
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">2. Select Table</Label>
+            <Select
+              value={config.table}
+              onValueChange={(v) => handleChange("table", v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Choose table..." />
+              </SelectTrigger>
+              <SelectContent>
+                {tables.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Columns Multi-select - only show if table is selected */}
+        {config.table && columns.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">3. Select Columns</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={handleSelectAllColumns}
+                >
+                  All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={handleClearColumns}
+                >
+                  Clear
+                </Button>
               </div>
             </div>
+            <div className="border rounded-lg p-3 space-y-2 max-h-[200px] overflow-y-auto">
+              {columns.map((col) => (
+                <div key={col} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`col-${col}`}
+                    checked={selectedColumns.includes(col)}
+                    onCheckedChange={(checked) => handleColumnToggle(col, checked as boolean)}
+                  />
+                  <label
+                    htmlFor={`col-${col}`}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    {col}
+                  </label>
+                </div>
+              ))}
+            </div>
+            {selectedColumns.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {selectedColumns.length} column{selectedColumns.length !== 1 ? "s" : ""} selected
+              </p>
+            )}
           </div>
-        );
-
-      default:
-        return null;
-    }
+        )}
+      </div>
+    );
   };
 
   const renderTransformConfig = () => {
+    const availableColumns = config.columns || getColumnsForTable() || [];
+    
     switch (block.type) {
       case "filter":
         return (
@@ -128,7 +214,7 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
                   <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_COLUMNS.map((c) => (
+                  {availableColumns.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -179,7 +265,7 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
             <div className="space-y-2">
               <Label>Group By Columns</Label>
               <div className="grid grid-cols-2 gap-2">
-                {SAMPLE_COLUMNS.map((col) => (
+                {availableColumns.map((col) => (
                   <label key={col} className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
                       type="checkbox"
@@ -214,7 +300,7 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
                   <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_COLUMNS.map((c) => (
+                  {availableColumns.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -269,7 +355,7 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
                   <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_COLUMNS.map((c) => (
+                  {availableColumns.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -315,22 +401,6 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Join Table</Label>
-              <Select
-                value={config.joinTable}
-                onValueChange={(v) => handleChange("joinTable", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select table..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {SAMPLE_TABLES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
               <Label>Left Column</Label>
               <Select
                 value={config.joinOnLeft}
@@ -340,7 +410,7 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
                   <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_COLUMNS.map((c) => (
+                  {availableColumns.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -356,7 +426,7 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
                   <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_COLUMNS.map((c) => (
+                  {availableColumns.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -378,7 +448,7 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
                   <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_COLUMNS.map((c) => (
+                  {availableColumns.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -394,7 +464,7 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
                   <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_COLUMNS.map((c) => (
+                  {availableColumns.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -410,7 +480,7 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
                   <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_COLUMNS.map((c) => (
+                  {availableColumns.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -457,7 +527,7 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
                   <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {SAMPLE_COLUMNS.map((c) => (
+                  {availableColumns.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -490,213 +560,198 @@ export const BlockConfigPanel = ({ block, onUpdate, onClose }: BlockConfigPanelP
   };
 
   const renderVisualizeConfig = () => {
-    return (
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label>Chart Type</Label>
-          <Select
-            value={config.chartType || block.type.replace("-chart", "")}
-            onValueChange={(v) => handleChange("chartType", v)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="bar">Bar Chart</SelectItem>
-              <SelectItem value="line">Line Chart</SelectItem>
-              <SelectItem value="area">Area Chart</SelectItem>
-              <SelectItem value="pie">Pie Chart</SelectItem>
-              <SelectItem value="donut">Donut Chart</SelectItem>
-              <SelectItem value="scatter">Scatter Plot</SelectItem>
-              <SelectItem value="radar">Radar Chart</SelectItem>
-              <SelectItem value="funnel">Funnel Chart</SelectItem>
-              <SelectItem value="kpi">KPI Card</SelectItem>
-              <SelectItem value="gauge">Gauge Chart</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>X-Axis Column</Label>
-          <Select
-            value={config.xAxis}
-            onValueChange={(v) => handleChange("xAxis", v)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select column..." />
-            </SelectTrigger>
-            <SelectContent>
-              {SAMPLE_COLUMNS.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Y-Axis Column</Label>
-          <Select
-            value={config.yAxis}
-            onValueChange={(v) => handleChange("yAxis", v)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select column..." />
-            </SelectTrigger>
-            <SelectContent>
-              {SAMPLE_COLUMNS.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Color Scheme</Label>
-          <Select
-            value={config.colorScheme || "default"}
-            onValueChange={(v) => handleChange("colorScheme", v)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.keys(COLOR_SCHEMES).map((scheme) => (
-                <SelectItem key={scheme} value={scheme}>
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-0.5">
-                      {COLOR_SCHEMES[scheme as keyof typeof COLOR_SCHEMES].slice(0, 4).map((color, i) => (
-                        <div
-                          key={i}
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
-                    <span className="capitalize">{scheme}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Chart Title</Label>
-          <Input
-            value={config.chartTitle || ""}
-            onChange={(e) => handleChange("chartTitle", e.target.value)}
-            placeholder="Enter title..."
-          />
-        </div>
-
-        <div className="flex items-center justify-between py-2">
-          <Label>Show Legend</Label>
-          <Switch
-            checked={config.showLegend ?? true}
-            onCheckedChange={(v) => handleChange("showLegend", v)}
-          />
-        </div>
-
-        <div className="flex items-center justify-between py-2">
-          <Label>Show Grid</Label>
-          <Switch
-            checked={config.showGrid ?? true}
-            onCheckedChange={(v) => handleChange("showGrid", v)}
-          />
-        </div>
-
-        <div className="flex items-center justify-between py-2">
-          <Label>Show Data Labels</Label>
-          <Switch
-            checked={config.showDataLabels ?? false}
-            onCheckedChange={(v) => handleChange("showDataLabels", v)}
-          />
-        </div>
-
-        {(config.chartType === "bar" || block.type === "bar-chart") && (
-          <div className="space-y-2">
-            <Label>Bar Radius: {config.barRadius ?? 4}px</Label>
-            <Slider
-              value={[config.barRadius ?? 4]}
-              onValueChange={(v) => handleChange("barRadius", v[0])}
-              min={0}
-              max={20}
-              step={1}
-            />
-          </div>
-        )}
-
-        {(config.chartType === "line" || config.chartType === "area" || block.type === "line-chart") && (
-          <div className="space-y-2">
-            <Label>Line Width: {config.lineStrokeWidth ?? 2}px</Label>
-            <Slider
-              value={[config.lineStrokeWidth ?? 2]}
-              onValueChange={(v) => handleChange("lineStrokeWidth", v[0])}
-              min={1}
-              max={6}
-              step={0.5}
-            />
-          </div>
-        )}
-
-        {config.chartType === "area" && (
-          <div className="space-y-2">
-            <Label>Area Opacity: {((config.areaOpacity ?? 0.3) * 100).toFixed(0)}%</Label>
-            <Slider
-              value={[config.areaOpacity ?? 0.3]}
-              onValueChange={(v) => handleChange("areaOpacity", v[0])}
-              min={0.1}
-              max={1}
-              step={0.1}
-            />
-          </div>
-        )}
-
-        {(config.chartType === "pie" || config.chartType === "donut" || block.type === "pie-chart") && (
-          <>
+    switch (block.type) {
+      case "chart":
+      case "bar-chart":
+      case "line-chart":
+      case "pie-chart":
+      case "area-chart":
+      case "scatter-chart":
+      case "radar-chart":
+        return (
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Inner Radius: {config.innerRadius ?? (config.chartType === "donut" ? 50 : 0)}</Label>
-              <Slider
-                value={[config.innerRadius ?? (config.chartType === "donut" ? 50 : 0)]}
-                onValueChange={(v) => handleChange("innerRadius", v[0])}
-                min={0}
-                max={80}
-                step={5}
+              <Label>Chart Type</Label>
+              <Select
+                value={config.chartType || "bar"}
+                onValueChange={(v) => handleChange("chartType", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bar">Bar Chart</SelectItem>
+                  <SelectItem value="line">Line Chart</SelectItem>
+                  <SelectItem value="pie">Pie Chart</SelectItem>
+                  <SelectItem value="area">Area Chart</SelectItem>
+                  <SelectItem value="scatter">Scatter Chart</SelectItem>
+                  <SelectItem value="radar">Radar Chart</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Chart Title</Label>
+              <Input
+                value={config.chartTitle || ""}
+                onChange={(e) => handleChange("chartTitle", e.target.value)}
+                placeholder="Enter chart title..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Color Scheme</Label>
+              <Select
+                value={config.colorScheme || "default"}
+                onValueChange={(v) => handleChange("colorScheme", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COLOR_SCHEMES.map((scheme) => (
+                    <SelectItem key={scheme.id} value={scheme.id}>
+                      {scheme.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Show Legend</Label>
+                <Switch
+                  checked={config.showLegend ?? true}
+                  onCheckedChange={(v) => handleChange("showLegend", v)}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label>Show Grid</Label>
+                <Switch
+                  checked={config.showGrid ?? true}
+                  onCheckedChange={(v) => handleChange("showGrid", v)}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label>Show Data Labels</Label>
+                <Switch
+                  checked={config.showDataLabels ?? false}
+                  onCheckedChange={(v) => handleChange("showDataLabels", v)}
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case "kpi":
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>KPI Title</Label>
+              <Input
+                value={config.kpiTitle || ""}
+                onChange={(e) => handleChange("kpiTitle", e.target.value)}
+                placeholder="e.g., Total Revenue"
               />
             </div>
             <div className="space-y-2">
-              <Label>Outer Radius: {config.outerRadius ?? 90}</Label>
-              <Slider
-                value={[config.outerRadius ?? 90]}
-                onValueChange={(v) => handleChange("outerRadius", v[0])}
-                min={50}
-                max={120}
-                step={5}
+              <Label>KPI Column</Label>
+              <Select
+                value={config.kpiColumn}
+                onValueChange={(v) => handleChange("kpiColumn", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select column..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="revenue">revenue</SelectItem>
+                  <SelectItem value="amount">amount</SelectItem>
+                  <SelectItem value="quantity">quantity</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Show Comparison</Label>
+              <Switch
+                checked={config.showComparison ?? false}
+                onCheckedChange={(v) => handleChange("showComparison", v)}
               />
             </div>
-          </>
-        )}
-      </div>
-    );
+          </div>
+        );
+
+      case "table_viz":
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Rows per Page</Label>
+              <Slider
+                value={[config.rowsPerPage || 10]}
+                onValueChange={(v) => handleChange("rowsPerPage", v[0])}
+                min={5}
+                max={50}
+                step={5}
+              />
+              <span className="text-xs text-muted-foreground">
+                {config.rowsPerPage || 10} rows
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Show Pagination</Label>
+              <Switch
+                checked={config.showPagination ?? true}
+                onCheckedChange={(v) => handleChange("showPagination", v)}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Enable Sorting</Label>
+              <Switch
+                checked={config.enableSorting ?? true}
+                onCheckedChange={(v) => handleChange("enableSorting", v)}
+              />
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  const renderConfig = () => {
+    if (block.type === "database") {
+      return renderDatabaseConfig();
+    }
+    if (block.category === "transform") {
+      return renderTransformConfig();
+    }
+    if (block.category === "visualize") {
+      return renderVisualizeConfig();
+    }
+    return null;
   };
 
   return (
-    <div className="w-80 border-l border-border/60 bg-card/50 flex flex-col animate-slide-in-right">
-      <div className="p-4 border-b border-border/60 flex items-center justify-between">
+    <aside className="w-80 border-l border-border/60 bg-card/50 flex flex-col shrink-0">
+      <div className="h-14 px-4 border-b border-border/60 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Settings2 className="w-4 h-4 text-muted-foreground" />
-          <h3 className="font-medium text-foreground">Configure {block.label}</h3>
+          <h3 className="font-medium text-foreground text-sm">Configure Block</h3>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+        <Button variant="ghost" size="icon" onClick={onClose}>
           <X className="w-4 h-4" />
         </Button>
       </div>
-
-      <ScrollArea className="flex-1 p-4">
-        {block.category === "data" && renderDataConfig()}
-        {block.category === "transform" && renderTransformConfig()}
-        {block.category === "visualize" && renderVisualizeConfig()}
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-4">
+          <div className="bg-muted/30 rounded-lg p-3">
+            <div className="text-xs text-muted-foreground mb-1">Block Type</div>
+            <div className="font-medium text-foreground">{block.label}</div>
+          </div>
+          {renderConfig()}
+        </div>
       </ScrollArea>
-    </div>
+    </aside>
   );
 };

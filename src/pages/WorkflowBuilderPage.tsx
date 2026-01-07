@@ -205,7 +205,7 @@ export const WorkflowBuilderPage = () => {
     });
   };
 
-  const handleOpenVisualize = (source: DataSourceType) => {
+const handleOpenVisualize = (source: DataSourceType) => {
     if (!hasRun) {
       toast({
         title: "Run the workflow first",
@@ -216,6 +216,13 @@ export const WorkflowBuilderPage = () => {
     }
     setSelectedDataSource(source);
     setVizDialogOpen(true);
+  };
+
+  const handleVizDialogClose = (open: boolean) => {
+    setVizDialogOpen(open);
+    if (!open) {
+      setSelectedDataSource(null);
+    }
   };
 
   const handleSaveVisualization = (config: any) => {
@@ -320,12 +327,13 @@ export const WorkflowBuilderPage = () => {
       {/* Visualization Dialog */}
       <VisualizationDialog
         open={vizDialogOpen}
-        onOpenChange={setVizDialogOpen}
+        onOpenChange={handleVizDialogClose}
         onSave={handleSaveVisualization}
         sourceData={SAMPLE_SOURCE_DATA}
         resultsData={SAMPLE_RESULTS_DATA}
         sourceColumns={Object.keys(SAMPLE_SOURCE_DATA[0])}
         resultsColumns={Object.keys(SAMPLE_RESULTS_DATA[0])}
+        initialDataSource={selectedDataSource || undefined}
       />
     </div>
   );
