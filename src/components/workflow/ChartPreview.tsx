@@ -44,7 +44,8 @@ export const ChartPreview = ({ workflow, data }: ChartPreviewProps) => {
 
   const config = vizBlock.config || {};
   const chartType: ChartType = config.chartType || vizBlock.type.replace("-chart", "") as ChartType;
-  const colorScheme = COLOR_SCHEMES[config.colorScheme as keyof typeof COLOR_SCHEMES] || COLOR_SCHEMES.default;
+  const colorSchemeData = COLOR_SCHEMES.find(s => s.id === config.colorScheme) || COLOR_SCHEMES[0];
+  const colorScheme = colorSchemeData.colors;
   const showLegend = config.showLegend ?? true;
   const showGrid = config.showGrid ?? true;
 

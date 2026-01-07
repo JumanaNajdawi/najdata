@@ -55,7 +55,7 @@ export const WorkflowCanvas = ({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
-  const [connectionEnd, setConnectionEnd] = useState<Position | null>(null);
+  const [mousePos, setMousePos] = useState<Position | null>(null);
   
   const [isDraggingFromPalette, setIsDraggingFromPalette] = useState(false);
 
@@ -85,6 +85,33 @@ export const WorkflowCanvas = ({
     return () => canvas?.removeEventListener("wheel", handleWheel);
   }, []);
 
+  // Global mouse up to cancel connection
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (connectingFrom) {
+        setConnectingFrom(null);
+        setMousePos(null);
+      }
+      setIsPanning(false);
+      setDraggingBlock(null);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setConnectingFrom(null);
+        setMousePos(null);
+        onSelectBlock(null);
+      }
+    };
+
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [connectingFrom, onSelectBlock]);
+
   // Pan handling
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
@@ -93,7 +120,9 @@ export const WorkflowCanvas = ({
       e.preventDefault();
     } else if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains("canvas-grid")) {
       onSelectBlock(null);
+      // Cancel any active connection
       setConnectingFrom(null);
+      setMousePos(null);
     }
   };
 
@@ -107,16 +136,15 @@ export const WorkflowCanvas = ({
         y: snapToGrid(pos.y - dragOffset.y),
       });
     } else if (connectingFrom) {
-      setConnectionEnd(screenToCanvas(e.clientX, e.clientY));
+      // Track mouse position for temp connection line
+      setMousePos(screenToCanvas(e.clientX, e.clientY));
     }
   };
 
-  const handleCanvasMouseUp = () => {
+  const handleCanvasMouseUp = (e: React.MouseEvent) => {
     setIsPanning(false);
     setDraggingBlock(null);
-    if (connectingFrom && !connectionEnd) {
-      setConnectingFrom(null);
-    }
+    // Don't cancel connection here - let port click handle it
   };
 
   // Block dragging
@@ -130,36 +158,30 @@ export const WorkflowCanvas = ({
     onSelectBlock(block.instanceId);
   };
 
-  // Connection handling
-  const handlePortClick = (e: React.MouseEvent, blockId: string, isOutput: boolean) => {
+  // Connection handling - start from output port
+  const handleOutputPortMouseDown = (e: React.MouseEvent, blockId: string) => {
     e.stopPropagation();
+    e.preventDefault();
+    setConnectingFrom(blockId);
+    setMousePos(screenToCanvas(e.clientX, e.clientY));
+  };
+
+  // Complete connection on input port
+  const handleInputPortMouseUp = (e: React.MouseEvent, blockId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
     
-    if (isOutput) {
-      setConnectingFrom(blockId);
-      setConnectionEnd(null);
-    } else if (connectingFrom && connectingFrom !== blockId) {
-      // Complete connection
+    if (connectingFrom && connectingFrom !== blockId) {
+      // Check if connection already exists
       const existingConnection = connections.find(
-        c => c.targetId === blockId
+        c => c.sourceId === connectingFrom && c.targetId === blockId
       );
       if (!existingConnection) {
         onAddConnection(connectingFrom, blockId);
       }
-      setConnectingFrom(null);
-      setConnectionEnd(null);
     }
-  };
-
-  const handlePortMouseUp = (e: React.MouseEvent, blockId: string) => {
-    e.stopPropagation();
-    if (connectingFrom && connectingFrom !== blockId) {
-      const existingConnection = connections.find(c => c.targetId === blockId);
-      if (!existingConnection) {
-        onAddConnection(connectingFrom, blockId);
-      }
-      setConnectingFrom(null);
-      setConnectionEnd(null);
-    }
+    setConnectingFrom(null);
+    setMousePos(null);
   };
 
   // Drop from palette
@@ -198,69 +220,6 @@ export const WorkflowCanvas = ({
       x: block.position.x + (isOutput ? width : 0),
       y: block.position.y + height / 2,
     };
-  };
-
-  // Render connection line
-  const renderConnection = (conn: Connection) => {
-    const source = workflow.find(b => b.instanceId === conn.sourceId);
-    const target = workflow.find(b => b.instanceId === conn.targetId);
-    if (!source || !target) return null;
-
-    const start = getBlockCenter(source, true);
-    const end = getBlockCenter(target, false);
-    
-    const midX = (start.x + end.x) / 2;
-    const path = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
-
-    return (
-      <g key={conn.id}>
-        <path
-          d={path}
-          fill="none"
-          stroke="hsl(var(--primary))"
-          strokeWidth={2}
-          className="transition-colors"
-        />
-        <path
-          d={path}
-          fill="none"
-          stroke="transparent"
-          strokeWidth={12}
-          className="cursor-pointer"
-          onClick={() => onRemoveConnection(conn.id)}
-        />
-        {/* Arrow */}
-        <circle
-          cx={end.x - 4}
-          cy={end.y}
-          r={4}
-          fill="hsl(var(--primary))"
-        />
-      </g>
-    );
-  };
-
-  // Render temporary connection while dragging
-  const renderTempConnection = () => {
-    if (!connectingFrom || !connectionEnd) return null;
-    
-    const source = workflow.find(b => b.instanceId === connectingFrom);
-    if (!source) return null;
-
-    const start = getBlockCenter(source, true);
-    const midX = (start.x + connectionEnd.x) / 2;
-    const path = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${connectionEnd.y}, ${connectionEnd.x} ${connectionEnd.y}`;
-
-    return (
-      <path
-        d={path}
-        fill="none"
-        stroke="hsl(var(--primary))"
-        strokeWidth={2}
-        strokeDasharray="5,5"
-        className="pointer-events-none"
-      />
-    );
   };
 
   const getConfigSummary = (block: WorkflowBlock): string => {
@@ -308,20 +267,24 @@ export const WorkflowCanvas = ({
         <span className="text-xs text-muted-foreground">
           {workflow.length} blocks • {connections.length} connections
         </span>
+        {connectingFrom && (
+          <Badge variant="secondary" className="text-xs">
+            Connecting... (ESC to cancel)
+          </Badge>
+        )}
       </div>
 
       {/* Canvas */}
       <div
         ref={canvasRef}
         className={cn(
-          "flex-1 overflow-hidden relative cursor-default",
-          isPanning && "cursor-grabbing",
+          "flex-1 overflow-hidden relative",
+          isPanning ? "cursor-grabbing" : connectingFrom ? "cursor-crosshair" : "cursor-default",
           isDraggingFromPalette && "ring-2 ring-inset ring-primary/30 bg-primary/5"
         )}
         onMouseDown={handleCanvasMouseDown}
         onMouseMove={handleCanvasMouseMove}
         onMouseUp={handleCanvasMouseUp}
-        onMouseLeave={handleCanvasMouseUp}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -349,16 +312,16 @@ export const WorkflowCanvas = ({
         >
           {/* Connections SVG layer */}
           <svg
-            className="absolute overflow-visible"
+            className="absolute overflow-visible pointer-events-none"
             style={{ 
               width: "4000px", 
               height: "4000px",
               left: "-2000px",
               top: "-2000px",
-              pointerEvents: "none",
             }}
           >
             <g style={{ transform: "translate(2000px, 2000px)" }}>
+              {/* Existing connections */}
               {connections.map((conn) => {
                 const source = workflow.find(b => b.instanceId === conn.sourceId);
                 const target = workflow.find(b => b.instanceId === conn.targetId);
@@ -367,51 +330,61 @@ export const WorkflowCanvas = ({
                 const start = getBlockCenter(source, true);
                 const end = getBlockCenter(target, false);
                 
-                const midX = (start.x + end.x) / 2;
-                const path = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
+                const dx = end.x - start.x;
+                const controlOffset = Math.min(Math.abs(dx) * 0.5, 100);
+                const path = `M ${start.x} ${start.y} C ${start.x + controlOffset} ${start.y}, ${end.x - controlOffset} ${end.y}, ${end.x} ${end.y}`;
 
                 return (
                   <g key={conn.id}>
+                    {/* Visible connection line */}
                     <path
                       d={path}
                       fill="none"
                       stroke="hsl(var(--primary))"
-                      strokeWidth={2}
+                      strokeWidth={2.5}
                       className="transition-colors"
                     />
+                    {/* Invisible wider path for easier clicking */}
                     <path
                       d={path}
                       fill="none"
                       stroke="transparent"
-                      strokeWidth={12}
+                      strokeWidth={16}
                       style={{ pointerEvents: "stroke", cursor: "pointer" }}
-                      onClick={() => onRemoveConnection(conn.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveConnection(conn.id);
+                      }}
                     />
-                    {/* Arrow */}
+                    {/* Arrow head */}
                     <circle
-                      cx={end.x - 4}
+                      cx={end.x - 5}
                       cy={end.y}
-                      r={4}
+                      r={5}
                       fill="hsl(var(--primary))"
                     />
                   </g>
                 );
               })}
-              {connectingFrom && connectionEnd && (() => {
+              
+              {/* Temporary connection while dragging */}
+              {connectingFrom && mousePos && (() => {
                 const source = workflow.find(b => b.instanceId === connectingFrom);
                 if (!source) return null;
 
                 const start = getBlockCenter(source, true);
-                const midX = (start.x + connectionEnd.x) / 2;
-                const path = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${connectionEnd.y}, ${connectionEnd.x} ${connectionEnd.y}`;
+                const dx = mousePos.x - start.x;
+                const controlOffset = Math.min(Math.abs(dx) * 0.5, 100);
+                const path = `M ${start.x} ${start.y} C ${start.x + controlOffset} ${start.y}, ${mousePos.x - controlOffset} ${mousePos.y}, ${mousePos.x} ${mousePos.y}`;
 
                 return (
                   <path
                     d={path}
                     fill="none"
                     stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    strokeDasharray="5,5"
+                    strokeWidth={2.5}
+                    strokeDasharray="8,4"
+                    opacity={0.7}
                   />
                 );
               })()}
@@ -426,16 +399,18 @@ export const WorkflowCanvas = ({
             const summary = getConfigSummary(block);
             const hasInputs = block.category !== "data";
             const hasOutputs = block.category !== "visualize";
+            const isConnectingTarget = connectingFrom && connectingFrom !== block.instanceId && hasInputs;
 
             return (
               <div
                 key={block.instanceId}
                 className={cn(
-                  "absolute w-[200px] rounded-xl border-2 bg-card shadow-lg transition-shadow select-none",
+                  "absolute w-[200px] rounded-xl border-2 bg-card shadow-lg transition-all select-none",
                   isSelected
                     ? "border-primary shadow-xl ring-2 ring-primary/20"
                     : "border-border/60 hover:border-border",
-                  isDragging && "shadow-2xl opacity-90"
+                  isDragging && "shadow-2xl opacity-90",
+                  isConnectingTarget && "ring-2 ring-primary/40"
                 )}
                 style={{
                   left: block.position.x,
@@ -448,27 +423,30 @@ export const WorkflowCanvas = ({
                 {hasInputs && (
                   <div
                     className={cn(
-                      "absolute -left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 bg-card cursor-crosshair transition-all",
-                      connectingFrom
-                        ? "border-primary bg-primary/20 scale-125"
-                        : "border-border hover:border-primary hover:bg-primary/10"
+                      "absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 bg-card flex items-center justify-center transition-all z-10",
+                      isConnectingTarget
+                        ? "border-primary bg-primary/20 scale-125 cursor-crosshair"
+                        : "border-border hover:border-primary hover:bg-primary/10 cursor-crosshair"
                     )}
-                    onClick={(e) => handlePortClick(e, block.instanceId, false)}
-                    onMouseUp={(e) => handlePortMouseUp(e, block.instanceId)}
-                  />
+                    onMouseUp={(e) => handleInputPortMouseUp(e, block.instanceId)}
+                  >
+                    <div className="w-2 h-2 rounded-full bg-current opacity-50" />
+                  </div>
                 )}
 
                 {/* Output port */}
                 {hasOutputs && (
                   <div
                     className={cn(
-                      "absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 bg-card cursor-crosshair transition-all",
+                      "absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 bg-card flex items-center justify-center cursor-crosshair transition-all z-10",
                       connectingFrom === block.instanceId
                         ? "border-primary bg-primary scale-125"
                         : "border-border hover:border-primary hover:bg-primary/10"
                     )}
-                    onClick={(e) => handlePortClick(e, block.instanceId, true)}
-                  />
+                    onMouseDown={(e) => handleOutputPortMouseDown(e, block.instanceId)}
+                  >
+                    <div className="w-2 h-2 rounded-full bg-current opacity-50" />
+                  </div>
                 )}
 
                 {/* Block content */}
@@ -497,10 +475,10 @@ export const WorkflowCanvas = ({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                          className="w-6 h-6 opacity-0 group-hover:opacity-100 hover:opacity-100 shrink-0"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <MoreHorizontal className="w-3 h-3" />
+                          <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -517,21 +495,14 @@ export const WorkflowCanvas = ({
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => onRemoveBlock(block.instanceId)}
-                          className="text-destructive"
+                          className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
+                          Remove
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                </div>
-
-                {/* Category badge */}
-                <div className="absolute -top-2 left-3">
-                  <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 capitalize">
-                    {block.category}
-                  </Badge>
                 </div>
               </div>
             );
@@ -541,21 +512,9 @@ export const WorkflowCanvas = ({
         {/* Empty state */}
         {workflow.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className={cn(
-              "text-center p-8 rounded-2xl border-2 border-dashed transition-all",
-              isDraggingFromPalette 
-                ? "border-primary bg-primary/10" 
-                : "border-border/60"
-            )}>
-              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
-                <GripVertical className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h3 className="font-semibold text-lg text-foreground mb-2">
-                {isDraggingFromPalette ? "Drop here to start" : "Build Your Workflow"}
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                Drag blocks from the palette and connect them to create your data pipeline
-              </p>
+            <div className="text-center text-muted-foreground">
+              <p className="text-lg font-medium">Empty Canvas</p>
+              <p className="text-sm">Drag blocks from the palette or click to add</p>
             </div>
           </div>
         )}

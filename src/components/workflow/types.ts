@@ -88,6 +88,16 @@ export interface BlockConfig {
   areaOpacity?: number;
   innerRadius?: number;
   outerRadius?: number;
+  
+  // KPI config
+  kpiTitle?: string;
+  kpiColumn?: string;
+  showComparison?: boolean;
+  
+  // Table viz config
+  rowsPerPage?: number;
+  showPagination?: boolean;
+  enableSorting?: boolean;
 }
 
 export type ChartType = 
@@ -117,13 +127,13 @@ export interface ChartConfig {
   stacked?: boolean;
 }
 
-export const COLOR_SCHEMES = {
-  default: ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"],
-  ocean: ["#0077b6", "#00b4d8", "#90e0ef", "#caf0f8", "#03045e"],
-  sunset: ["#ff6b6b", "#feca57", "#ff9ff3", "#54a0ff", "#5f27cd"],
-  forest: ["#2d6a4f", "#40916c", "#52b788", "#74c69d", "#95d5b2"],
-  monochrome: ["#212529", "#495057", "#6c757d", "#adb5bd", "#dee2e6"],
-};
+export const COLOR_SCHEMES = [
+  { id: "default", name: "Default", colors: ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"] },
+  { id: "ocean", name: "Ocean", colors: ["#0077b6", "#00b4d8", "#90e0ef", "#caf0f8", "#03045e"] },
+  { id: "sunset", name: "Sunset", colors: ["#ff6b6b", "#feca57", "#ff9ff3", "#54a0ff", "#5f27cd"] },
+  { id: "forest", name: "Forest", colors: ["#2d6a4f", "#40916c", "#52b788", "#74c69d", "#95d5b2"] },
+  { id: "monochrome", name: "Monochrome", colors: ["#212529", "#495057", "#6c757d", "#adb5bd", "#dee2e6"] },
+];
 
 export interface WorkflowState {
   blocks: WorkflowBlock[];

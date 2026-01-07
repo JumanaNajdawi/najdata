@@ -82,7 +82,8 @@ export const EnhancedChartCard = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
 
-  const colors = COLOR_SCHEMES[colorScheme as keyof typeof COLOR_SCHEMES] || COLOR_SCHEMES.default;
+  const colorSchemeData = COLOR_SCHEMES.find(s => s.id === colorScheme) || COLOR_SCHEMES[0];
+  const colors = colorSchemeData.colors;
 
   const handleExport = (format: "png" | "csv") => {
     toast({
