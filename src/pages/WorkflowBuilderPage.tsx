@@ -27,7 +27,7 @@ import {
   Target,
   Activity,
   TrendingUp,
-  Palette,
+  ChevronDown,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -36,11 +36,14 @@ import { BlockPalette } from "@/components/workflow/BlockPalette";
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
 import { BlockConfigPanel } from "@/components/workflow/BlockConfigPanel";
 import { PreviewPanel } from "@/components/workflow/PreviewPanel";
-import { DataSourceSelector, DataSourceType } from "@/components/visualization/DataSourceSelector";
-import { VisualizationStep } from "@/components/visualization/VisualizationStep";
+import { VisualizationDialog, DataSourceType } from "@/components/workflow/VisualizationDialog";
 import { VisualizationConfig } from "@/components/sql/SQLVisualizationPanel";
-
-type BuilderStep = "build" | "select-data" | "visualize";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const AVAILABLE_BLOCKS: Block[] = [
   // Data blocks
@@ -110,9 +113,9 @@ export const WorkflowBuilderPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [insightName, setInsightName] = useState("Untitled Insight");
-  const [currentStep, setCurrentStep] = useState<BuilderStep>("build");
-  const [selectedDataSource, setSelectedDataSource] = useState<DataSourceType | null>(null);
   const [hasRun, setHasRun] = useState(false);
+  const [vizDialogOpen, setVizDialogOpen] = useState(false);
+  const [selectedDataSource, setSelectedDataSource] = useState<DataSourceType | null>(null);
   
   // Workflow state with positions
   const [workflow, setWorkflow] = useState<WorkflowBlock[]>([
@@ -202,38 +205,20 @@ export const WorkflowBuilderPage = () => {
     });
   };
 
-  const handleContinueFromBuilder = () => {
+  const handleOpenVisualize = (source: DataSourceType) => {
     if (!hasRun) {
       toast({
         title: "Run the workflow first",
-        description: "Please run the workflow before continuing to visualization.",
+        description: "Please run the workflow before visualizing.",
         variant: "destructive",
       });
       return;
     }
-    setCurrentStep("select-data");
-  };
-
-  const handleDataSourceSelect = (source: DataSourceType) => {
     setSelectedDataSource(source);
+    setVizDialogOpen(true);
   };
 
-  const handleContinueToVisualize = () => {
-    if (selectedDataSource) {
-      setCurrentStep("visualize");
-    }
-  };
-
-  const handleBackToBuilder = () => {
-    setCurrentStep("build");
-    setSelectedDataSource(null);
-  };
-
-  const handleBackToDataSelect = () => {
-    setCurrentStep("select-data");
-  };
-
-  const handleSave = (config?: any) => {
+  const handleSaveVisualization = (config: any) => {
     toast({
       title: "Insight saved",
       description: `"${insightName}" has been saved successfully.`,
@@ -245,75 +230,6 @@ export const WorkflowBuilderPage = () => {
     return ICON_MAP[iconName] || Database;
   };
 
-  // Get the correct data based on selection
-  const getVisualizationData = () => {
-    if (selectedDataSource === "source") {
-      return SAMPLE_SOURCE_DATA;
-    }
-    return SAMPLE_RESULTS_DATA;
-  };
-
-  // Data source selection step
-  if (currentStep === "select-data") {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <header className="h-14 border-b border-border/60 bg-card/50 flex items-center px-4 gap-4 shrink-0">
-          <Button variant="ghost" size="sm" onClick={handleBackToBuilder}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Builder
-          </Button>
-          <div className="h-4 w-px bg-border" />
-          <Input
-            value={insightName}
-            onChange={(e) => setInsightName(e.target.value)}
-            className="text-lg font-semibold border-0 bg-transparent focus-visible:ring-0 px-0 w-auto max-w-xs"
-          />
-        </header>
-        <DataSourceSelector
-          selectedSource={selectedDataSource}
-          onSelectSource={handleDataSourceSelect}
-          onContinue={handleContinueToVisualize}
-          sourceRowCount={SAMPLE_SOURCE_DATA.length}
-          resultsRowCount={SAMPLE_RESULTS_DATA.length}
-        />
-      </div>
-    );
-  }
-
-  // Visualization step
-  if (currentStep === "visualize") {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <header className="h-14 border-b border-border/60 bg-card/50 flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={handleBackToDataSelect}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-            <div className="h-4 w-px bg-border" />
-            <Input
-              value={insightName}
-              onChange={(e) => setInsightName(e.target.value)}
-              className="text-lg font-semibold border-0 bg-transparent focus-visible:ring-0 px-0 w-auto max-w-xs"
-            />
-          </div>
-          <Button onClick={handleSave}>
-            <Save className="w-4 h-4 mr-2" />
-            Save Insight
-          </Button>
-        </header>
-        <VisualizationStep
-          dataSource={selectedDataSource || "results"}
-          data={getVisualizationData()}
-          columns={selectedDataSource === "source" ? Object.keys(SAMPLE_SOURCE_DATA[0]) : Object.keys(SAMPLE_RESULTS_DATA[0])}
-          onBack={handleBackToDataSelect}
-          onSave={handleSave}
-        />
-      </div>
-    );
-  }
-
-  // Build step (default)
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="h-14 border-b border-border/60 bg-card/50 flex items-center justify-between px-4 shrink-0">
@@ -336,9 +252,31 @@ export const WorkflowBuilderPage = () => {
             <Play className="w-4 h-4 mr-2" />
             Run
           </Button>
-          <Button onClick={handleContinueFromBuilder} disabled={!hasRun}>
-            Continue to Visualize
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button disabled={!hasRun}>
+                <BarChart2 className="w-4 h-4 mr-2" />
+                Visualize
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleOpenVisualize("source")}>
+                <Database className="w-4 h-4 mr-2" />
+                Source Data
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {SAMPLE_SOURCE_DATA.length} rows
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleOpenVisualize("results")}>
+                <Table2 className="w-4 h-4 mr-2" />
+                Results Data
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {SAMPLE_RESULTS_DATA.length} rows
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -378,6 +316,17 @@ export const WorkflowBuilderPage = () => {
           <PreviewPanel workflow={workflow} data={SAMPLE_RESULTS_DATA} />
         )}
       </div>
+
+      {/* Visualization Dialog */}
+      <VisualizationDialog
+        open={vizDialogOpen}
+        onOpenChange={setVizDialogOpen}
+        onSave={handleSaveVisualization}
+        sourceData={SAMPLE_SOURCE_DATA}
+        resultsData={SAMPLE_RESULTS_DATA}
+        sourceColumns={Object.keys(SAMPLE_SOURCE_DATA[0])}
+        resultsColumns={Object.keys(SAMPLE_RESULTS_DATA[0])}
+      />
     </div>
   );
 };

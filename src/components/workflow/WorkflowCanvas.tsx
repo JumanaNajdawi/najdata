@@ -349,11 +349,73 @@ export const WorkflowCanvas = ({
         >
           {/* Connections SVG layer */}
           <svg
-            className="absolute inset-0 pointer-events-none overflow-visible"
-            style={{ width: "100%", height: "100%" }}
+            className="absolute overflow-visible"
+            style={{ 
+              width: "4000px", 
+              height: "4000px",
+              left: "-2000px",
+              top: "-2000px",
+              pointerEvents: "none",
+            }}
           >
-            {connections.map(renderConnection)}
-            {renderTempConnection()}
+            <g style={{ transform: "translate(2000px, 2000px)" }}>
+              {connections.map((conn) => {
+                const source = workflow.find(b => b.instanceId === conn.sourceId);
+                const target = workflow.find(b => b.instanceId === conn.targetId);
+                if (!source || !target) return null;
+
+                const start = getBlockCenter(source, true);
+                const end = getBlockCenter(target, false);
+                
+                const midX = (start.x + end.x) / 2;
+                const path = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x} ${end.y}`;
+
+                return (
+                  <g key={conn.id}>
+                    <path
+                      d={path}
+                      fill="none"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2}
+                      className="transition-colors"
+                    />
+                    <path
+                      d={path}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={12}
+                      style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                      onClick={() => onRemoveConnection(conn.id)}
+                    />
+                    {/* Arrow */}
+                    <circle
+                      cx={end.x - 4}
+                      cy={end.y}
+                      r={4}
+                      fill="hsl(var(--primary))"
+                    />
+                  </g>
+                );
+              })}
+              {connectingFrom && connectionEnd && (() => {
+                const source = workflow.find(b => b.instanceId === connectingFrom);
+                if (!source) return null;
+
+                const start = getBlockCenter(source, true);
+                const midX = (start.x + connectionEnd.x) / 2;
+                const path = `M ${start.x} ${start.y} C ${midX} ${start.y}, ${midX} ${connectionEnd.y}, ${connectionEnd.x} ${connectionEnd.y}`;
+
+                return (
+                  <path
+                    d={path}
+                    fill="none"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    strokeDasharray="5,5"
+                  />
+                );
+              })()}
+            </g>
           </svg>
 
           {/* Blocks */}
