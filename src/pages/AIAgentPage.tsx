@@ -29,6 +29,51 @@ import {
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { VisualizationDialog } from "@/components/workflow/VisualizationDialog";
+import { AddToDashboardDialog } from "@/components/dashboard/AddToDashboardDialog";
+
+interface Dashboard {
+  id: string;
+  name: string;
+  description?: string;
+  insightCount: number;
+  visibility: "private" | "public";
+  isMain?: boolean;
+  starred?: boolean;
+}
+
+const DASHBOARDS: Dashboard[] = [
+  {
+    id: "main",
+    name: "Main Dashboard",
+    description: "Your primary workspace for all insights",
+    insightCount: 8,
+    visibility: "private",
+    isMain: true,
+    starred: true,
+  },
+  {
+    id: "sales",
+    name: "Sales Overview",
+    description: "Revenue and sales performance metrics",
+    insightCount: 5,
+    visibility: "public",
+    starred: true,
+  },
+  {
+    id: "marketing",
+    name: "Marketing Analytics",
+    description: "Campaign performance and user acquisition",
+    insightCount: 4,
+    visibility: "private",
+  },
+  {
+    id: "product",
+    name: "Product Metrics",
+    description: "User engagement and feature adoption",
+    insightCount: 6,
+    visibility: "private",
+  },
+];
 
 interface Message {
   id: string;
@@ -88,6 +133,7 @@ export const AIAgentPage = () => {
   const { toast } = useToast();
   const [visualizationOpen, setVisualizationOpen] = useState(false);
   const [selectedChartData, setSelectedChartData] = useState<any[]>([]);
+  const [dashboardDialogOpen, setDashboardDialogOpen] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -193,9 +239,13 @@ export const AIAgentPage = () => {
   };
 
   const handleAddToDashboard = () => {
+    setDashboardDialogOpen(true);
+  };
+
+  const handleDashboardSelect = (dashboard: Dashboard) => {
     toast({
       title: "Added to Dashboard",
-      description: "Insight added to your main dashboard",
+      description: `Insight added to "${dashboard.name}"`,
     });
   };
 
@@ -423,6 +473,14 @@ export const AIAgentPage = () => {
         initialDataSource="results"
         resultsData={selectedChartData}
         resultsColumns={selectedChartData.length > 0 ? Object.keys(selectedChartData[0]) : []}
+      />
+
+      {/* Add to Dashboard Dialog */}
+      <AddToDashboardDialog
+        open={dashboardDialogOpen}
+        onOpenChange={setDashboardDialogOpen}
+        onSelect={handleDashboardSelect}
+        dashboards={DASHBOARDS}
       />
     </div>
   );
