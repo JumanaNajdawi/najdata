@@ -179,21 +179,19 @@ export const SQLVisualizationPanel = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.keys(COLOR_SCHEMES).map((scheme) => (
-                <SelectItem key={scheme} value={scheme}>
+              {COLOR_SCHEMES.map((scheme) => (
+                <SelectItem key={scheme.id} value={scheme.id}>
                   <div className="flex items-center gap-2">
                     <div className="flex gap-0.5">
-                      {COLOR_SCHEMES[scheme as keyof typeof COLOR_SCHEMES]
-                        .slice(0, 4)
-                        .map((color, i) => (
-                          <div
-                            key={i}
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
+                      {scheme.colors.slice(0, 4).map((color, i) => (
+                        <div
+                          key={i}
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
                     </div>
-                    <span className="capitalize">{scheme}</span>
+                    <span>{scheme.name}</span>
                   </div>
                 </SelectItem>
               ))}
