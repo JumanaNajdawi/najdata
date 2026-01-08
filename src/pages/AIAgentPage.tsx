@@ -12,6 +12,7 @@ import {
   Code2,
   Workflow,
   LayoutDashboard,
+  Palette,
 } from "lucide-react";
 import {
   BarChart,
@@ -27,6 +28,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
+import { VisualizationDialog } from "@/components/workflow/VisualizationDialog";
 
 interface Message {
   id: string;
@@ -84,6 +86,8 @@ export const AIAgentPage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const [visualizationOpen, setVisualizationOpen] = useState(false);
+  const [selectedChartData, setSelectedChartData] = useState<any[]>([]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -195,6 +199,11 @@ export const AIAgentPage = () => {
     });
   };
 
+  const handleCustomizeChart = (chartData: any[]) => {
+    setSelectedChartData(chartData);
+    setVisualizationOpen(true);
+  };
+
   const renderChart = (chart: Message["chart"]) => {
     if (!chart) return null;
 
@@ -261,6 +270,10 @@ export const AIAgentPage = () => {
 
         {/* Chart Actions */}
         <div className="mt-4 pt-4 border-t border-border flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => handleCustomizeChart(chart.data)}>
+            <Palette className="w-4 h-4 mr-2" />
+            Customize
+          </Button>
           <Button variant="outline" size="sm" onClick={handleSaveToLibrary}>
             <Save className="w-4 h-4 mr-2" />
             Save to Library
@@ -402,6 +415,15 @@ export const AIAgentPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Visualization Dialog */}
+      <VisualizationDialog
+        open={visualizationOpen}
+        onOpenChange={setVisualizationOpen}
+        initialDataSource="results"
+        resultsData={selectedChartData}
+        resultsColumns={selectedChartData.length > 0 ? Object.keys(selectedChartData[0]) : []}
+      />
     </div>
   );
 };
