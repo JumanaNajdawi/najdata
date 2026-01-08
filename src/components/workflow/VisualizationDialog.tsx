@@ -24,27 +24,29 @@ export type DataSourceType = "source" | "results";
 interface VisualizationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (config: {
+  onSave?: (config: {
     chartType: ChartType | "table";
     vizConfig: VisualizationConfig;
     dataSource: DataSourceType;
   }) => void;
-  sourceData: any[];
-  resultsData: any[];
-  sourceColumns: string[];
-  resultsColumns: string[];
+  sourceData?: any[];
+  resultsData?: any[];
+  sourceColumns?: string[];
+  resultsColumns?: string[];
   initialDataSource?: DataSourceType;
+  sampleData?: any[];
 }
 
 export const VisualizationDialog = ({
   open,
   onOpenChange,
   onSave,
-  sourceData,
-  resultsData,
-  sourceColumns,
-  resultsColumns,
+  sourceData = [],
+  resultsData = [],
+  sourceColumns = [],
+  resultsColumns = [],
   initialDataSource,
+  sampleData,
 }: VisualizationDialogProps) => {
   const [chartType, setChartType] = useState<ChartType | "table">("bar");
   const [vizConfig, setVizConfig] = useState<VisualizationConfig>({
