@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -131,6 +132,7 @@ export const AIAgentPage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [visualizationOpen, setVisualizationOpen] = useState(false);
   const [selectedChartData, setSelectedChartData] = useState<any[]>([]);
   const [dashboardDialogOpen, setDashboardDialogOpen] = useState(false);
@@ -332,11 +334,11 @@ export const AIAgentPage = () => {
             <LayoutDashboard className="w-4 h-4 mr-2" />
             Add to Dashboard
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => navigate("/workflow-builder")}>
             <Workflow className="w-4 h-4 mr-2" />
             Edit in Workflow
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => navigate("/sql-editor")}>
             <Code2 className="w-4 h-4 mr-2" />
             Edit SQL
           </Button>
