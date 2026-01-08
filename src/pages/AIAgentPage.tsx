@@ -14,6 +14,11 @@ import {
   Workflow,
   LayoutDashboard,
   Palette,
+  Database,
+  Check,
+  X,
+  Loader2,
+  Table,
 } from "lucide-react";
 import {
   BarChart,
@@ -76,6 +81,27 @@ const DASHBOARDS: Dashboard[] = [
   },
 ];
 
+interface DataSource {
+  id: string;
+  name: string;
+  table: string;
+  columns: string[];
+}
+
+const DATA_SOURCES: DataSource[] = [
+  { id: "sales", name: "Sales Database", table: "sales_data", columns: ["date", "product", "revenue", "quantity", "region"] },
+  { id: "customers", name: "Customer Database", table: "customers", columns: ["id", "name", "email", "segment", "lifetime_value"] },
+  { id: "products", name: "Product Catalog", table: "products", columns: ["id", "name", "category", "price", "stock"] },
+  { id: "analytics", name: "Web Analytics", table: "page_views", columns: ["date", "page", "views", "unique_visitors", "bounce_rate"] },
+];
+
+interface PendingQuery {
+  query: string;
+  step: "select_source" | "confirm_data" | "generating";
+  selectedSource?: DataSource;
+  sampleData?: any[];
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -84,6 +110,12 @@ interface Message {
     type: "bar" | "line" | "pie";
     data: any[];
   };
+  dataSourceSelection?: DataSource[];
+  sampleDataPreview?: {
+    source: DataSource;
+    data: any[];
+  };
+  isGenerating?: boolean;
 }
 
 const SAMPLE_DATA = [
@@ -136,6 +168,7 @@ export const AIAgentPage = () => {
   const [visualizationOpen, setVisualizationOpen] = useState(false);
   const [selectedChartData, setSelectedChartData] = useState<any[]>([]);
   const [dashboardDialogOpen, setDashboardDialogOpen] = useState(false);
+  const [pendingQuery, setPendingQuery] = useState<PendingQuery | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -216,14 +249,120 @@ export const AIAgentPage = () => {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const currentQuery = input;
     setInput("");
     setIsTyping(true);
 
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Step 1: Ask user to confirm data source
+    const dataSourceMessage: Message = {
+      id: Date.now().toString(),
+      role: "assistant",
+      content: "I found relevant data sources for your query. Please select one to continue:",
+      dataSourceSelection: DATA_SOURCES,
+    };
+
+    setMessages((prev) => [...prev, dataSourceMessage]);
+    setPendingQuery({ query: currentQuery, step: "select_source" });
+    setIsTyping(false);
+  };
+
+  const generateSampleData = (source: DataSource): any[] => {
+    // Generate sample data based on the source
+    if (source.id === "sales") {
+      return [
+        { date: "2024-01-15", product: "Laptop Pro", revenue: 1299, quantity: 1, region: "North" },
+        { date: "2024-01-16", product: "Wireless Mouse", revenue: 49, quantity: 3, region: "South" },
+        { date: "2024-01-17", product: "USB-C Hub", revenue: 79, quantity: 2, region: "East" },
+        { date: "2024-01-18", product: "Monitor 27\"", revenue: 399, quantity: 1, region: "West" },
+        { date: "2024-01-19", product: "Keyboard", revenue: 129, quantity: 2, region: "North" },
+      ];
+    } else if (source.id === "customers") {
+      return [
+        { id: "C001", name: "John Smith", email: "john@example.com", segment: "Enterprise", lifetime_value: 15000 },
+        { id: "C002", name: "Jane Doe", email: "jane@example.com", segment: "SMB", lifetime_value: 5000 },
+        { id: "C003", name: "Bob Wilson", email: "bob@example.com", segment: "Startup", lifetime_value: 2500 },
+        { id: "C004", name: "Alice Brown", email: "alice@example.com", segment: "Enterprise", lifetime_value: 22000 },
+        { id: "C005", name: "Charlie Lee", email: "charlie@example.com", segment: "SMB", lifetime_value: 8000 },
+      ];
+    } else if (source.id === "products") {
+      return [
+        { id: "P001", name: "Laptop Pro", category: "Electronics", price: 1299, stock: 45 },
+        { id: "P002", name: "Wireless Mouse", category: "Accessories", price: 49, stock: 230 },
+        { id: "P003", name: "USB-C Hub", category: "Accessories", price: 79, stock: 120 },
+        { id: "P004", name: "Monitor 27\"", category: "Electronics", price: 399, stock: 30 },
+        { id: "P005", name: "Keyboard", category: "Accessories", price: 129, stock: 85 },
+      ];
+    } else {
+      return [
+        { date: "2024-01-15", page: "/home", views: 1250, unique_visitors: 890, bounce_rate: 32 },
+        { date: "2024-01-15", page: "/products", views: 780, unique_visitors: 520, bounce_rate: 28 },
+        { date: "2024-01-15", page: "/pricing", views: 450, unique_visitors: 380, bounce_rate: 22 },
+        { date: "2024-01-15", page: "/about", views: 120, unique_visitors: 95, bounce_rate: 45 },
+        { date: "2024-01-15", page: "/contact", views: 85, unique_visitors: 70, bounce_rate: 18 },
+      ];
+    }
+  };
+
+  const handleSelectDataSource = async (source: DataSource) => {
+    if (!pendingQuery) return;
+
+    setIsTyping(true);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const sampleData = generateSampleData(source);
+
+    // Step 2: Show sample data preview
+    const sampleDataMessage: Message = {
+      id: Date.now().toString(),
+      role: "assistant",
+      content: `Here's a preview of the data from **${source.name}** (${source.table}):`,
+      sampleDataPreview: {
+        source,
+        data: sampleData,
+      },
+    };
+
+    setMessages((prev) => [...prev, sampleDataMessage]);
+    setPendingQuery({ ...pendingQuery, step: "confirm_data", selectedSource: source, sampleData });
+    setIsTyping(false);
+  };
+
+  const handleConfirmData = async () => {
+    if (!pendingQuery || !pendingQuery.selectedSource) return;
+
+    setIsTyping(true);
+
+    // Step 3: Generate insight
+    const generatingMessage: Message = {
+      id: Date.now().toString(),
+      role: "assistant",
+      content: "Generating your insight...",
+      isGenerating: true,
+    };
+
+    setMessages((prev) => [...prev, generatingMessage]);
+
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    const aiResponse = simulateAIResponse(input);
+    // Remove generating message and add final insight
+    setMessages((prev) => prev.filter((m) => !m.isGenerating));
+
+    const aiResponse = simulateAIResponse(pendingQuery.query);
     setMessages((prev) => [...prev, aiResponse]);
+    setPendingQuery(null);
     setIsTyping(false);
+  };
+
+  const handleCancelDataSource = () => {
+    setPendingQuery(null);
+    const cancelMessage: Message = {
+      id: Date.now().toString(),
+      role: "assistant",
+      content: "No problem! Feel free to ask another question.",
+    };
+    setMessages((prev) => [...prev, cancelMessage]);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -380,6 +519,96 @@ export const AIAgentPage = () => {
                   }`}
                 >
                   <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  
+                  {/* Data Source Selection */}
+                  {message.dataSourceSelection && (
+                    <div className="mt-4 space-y-2">
+                      {message.dataSourceSelection.map((source) => (
+                        <Button
+                          key={source.id}
+                          variant="outline"
+                          className="w-full justify-start h-auto p-3 hover:bg-accent"
+                          onClick={() => handleSelectDataSource(source)}
+                          disabled={pendingQuery?.step !== "select_source"}
+                        >
+                          <Database className="w-4 h-4 mr-3 text-primary" />
+                          <div className="text-left">
+                            <div className="font-medium">{source.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {source.table} • {source.columns.length} columns
+                            </div>
+                          </div>
+                        </Button>
+                      ))}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={handleCancelDataSource}
+                        disabled={pendingQuery?.step !== "select_source"}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Sample Data Preview */}
+                  {message.sampleDataPreview && (
+                    <div className="mt-4">
+                      <div className="overflow-x-auto rounded-lg border border-border">
+                        <table className="w-full text-xs">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              {message.sampleDataPreview.source.columns.map((col) => (
+                                <th key={col} className="px-3 py-2 text-left font-medium text-muted-foreground">
+                                  {col}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {message.sampleDataPreview.data.map((row, idx) => (
+                              <tr key={idx} className="border-t border-border">
+                                {message.sampleDataPreview!.source.columns.map((col) => (
+                                  <td key={col} className="px-3 py-2 text-foreground">
+                                    {row[col]}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleConfirmData}
+                          disabled={pendingQuery?.step !== "confirm_data"}
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          Generate Insight
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCancelDataSource}
+                          disabled={pendingQuery?.step !== "confirm_data"}
+                        >
+                          Choose Different Source
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Generating State */}
+                  {message.isGenerating && (
+                    <div className="mt-3 flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">Analyzing data...</span>
+                    </div>
+                  )}
+
                   {message.chart && renderChart(message.chart)}
                 </div>
               </div>
