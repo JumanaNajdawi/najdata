@@ -9,17 +9,26 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Zap
 } from "lucide-react";
 import { AIChatPanel } from "./AIChatPanel";
 import { ChartCard } from "./ChartCard";
+import { QuickInsightDialog } from "./QuickInsightDialog";
 import { useToast } from "@/hooks/use-toast";
 
-const INITIAL_CHARTS = [
+interface ChartData {
+  id: string;
+  title: string;
+  type: "line" | "bar" | "pie";
+  data: { name: string; value: number }[];
+}
+
+const INITIAL_CHARTS: ChartData[] = [
   {
     id: "1",
     title: "Monthly Revenue",
-    type: "line" as const,
+    type: "line",
     data: [
       { name: "Jan", value: 4000 },
       { name: "Feb", value: 3000 },
@@ -32,7 +41,7 @@ const INITIAL_CHARTS = [
   {
     id: "2",
     title: "Sales by Category",
-    type: "pie" as const,
+    type: "pie",
     data: [
       { name: "Electronics", value: 35 },
       { name: "Clothing", value: 25 },
@@ -46,6 +55,7 @@ const INITIAL_CHARTS = [
 export const DashboardPage = () => {
   const [charts, setCharts] = useState(INITIAL_CHARTS);
   const [isChatOpen, setIsChatOpen] = useState(true);
+  const [quickInsightOpen, setQuickInsightOpen] = useState(false);
   const { toast } = useToast();
 
   const handleSaveChart = (chart: any) => {
@@ -74,6 +84,26 @@ export const DashboardPage = () => {
     toast({
       title: "Use AI to create charts",
       description: "Ask the AI assistant to generate visualizations from your data",
+    });
+  };
+
+  const handleQuickInsightSave = (insight: {
+    database: string;
+    table: string;
+    columns: string[];
+    chartType: string;
+    data: any[];
+  }) => {
+    const newChart = {
+      id: Date.now().toString(),
+      title: `${insight.table} - ${insight.columns.join(", ")}`,
+      type: insight.chartType as "line" | "bar" | "pie",
+      data: insight.data,
+    };
+    setCharts((prev) => [...prev, newChart]);
+    toast({
+      title: "Chart added",
+      description: "Your quick insight has been added to the dashboard",
     });
   };
 
@@ -129,12 +159,22 @@ export const DashboardPage = () => {
             <p className="text-sm text-muted-foreground">Last updated: Just now</p>
           </div>
           <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => setQuickInsightOpen(true)} className="h-9">
+              <Zap className="w-4 h-4 mr-2" />
+              Quick Insight
+            </Button>
             <Button variant="outline" size="sm" onClick={handleAddChart} className="h-9">
               <Plus className="w-4 h-4 mr-2" />
               Add Chart
             </Button>
           </div>
         </header>
+
+        <QuickInsightDialog
+          open={quickInsightOpen}
+          onOpenChange={setQuickInsightOpen}
+          onSave={handleQuickInsightSave}
+        />
 
         {/* Dashboard Canvas */}
         <div className="flex-1 flex relative">
