@@ -17,6 +17,7 @@ import {
   Trash2,
   Copy,
   Edit,
+  Zap,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
@@ -28,6 +29,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { QuickInsightDialog } from "@/components/dashboard/QuickInsightDialog";
+import { useToast } from "@/hooks/use-toast";
 
 type ViewMode = "grid" | "list";
 type CreationMethod = "workflow" | "sql" | "ai";
@@ -127,11 +130,37 @@ const methodColors: Record<CreationMethod, string> = {
 export const InsightsPage = () => {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [searchQuery, setSearchQuery] = useState("");
-  const [insights] = useState<Insight[]>(SAMPLE_INSIGHTS);
+  const [insights, setInsights] = useState<Insight[]>(SAMPLE_INSIGHTS);
+  const [quickInsightOpen, setQuickInsightOpen] = useState(false);
+  const { toast } = useToast();
 
   const filteredInsights = insights.filter((insight) =>
     insight.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleQuickInsightSave = (insight: {
+    database: string;
+    table: string;
+    columns: string[];
+    chartType: string;
+    data: any[];
+  }) => {
+    const newInsight: Insight = {
+      id: Date.now().toString(),
+      name: `${insight.table} - ${insight.columns.join(", ")}`,
+      description: `Quick insight from ${insight.database}`,
+      type: insight.chartType as Insight["type"],
+      createdAt: new Date().toISOString().split("T")[0],
+      updatedAt: "Just now",
+      database: insight.database,
+      creationMethod: "workflow",
+    };
+    setInsights((prev) => [newInsight, ...prev]);
+    toast({
+      title: "Insight created",
+      description: "Your quick insight has been added",
+    });
+  };
 
   const InsightCard = ({ insight }: { insight: Insight }) => {
     const MethodIcon = methodIcons[insight.creationMethod];
@@ -293,13 +322,25 @@ export const InsightsPage = () => {
             {insights.length} insights
           </p>
         </div>
-        <Button asChild>
-          <Link to="/insights/new">
-            <Plus className="w-4 h-4 mr-2" />
-            Create Insight
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setQuickInsightOpen(true)}>
+            <Zap className="w-4 h-4 mr-2" />
+            Quick Insight
+          </Button>
+          <Button asChild>
+            <Link to="/insights/new">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Insight
+            </Link>
+          </Button>
+        </div>
       </header>
+
+      <QuickInsightDialog
+        open={quickInsightOpen}
+        onOpenChange={setQuickInsightOpen}
+        onSave={handleQuickInsightSave}
+      />
 
       <div className="p-6">
         {/* Toolbar */}
