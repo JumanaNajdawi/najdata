@@ -8,6 +8,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Database,
   Table,
@@ -17,24 +19,14 @@ import {
   BarChart3,
   Check,
   ArrowRight,
+  Palette,
+  Type,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  AreaChart,
-  Area,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { ChartPreview } from "@/components/workflow/ChartPreview";
+import { SQLVisualizationPanel, VisualizationConfig } from "@/components/sql/SQLVisualizationPanel";
+import { ChartType, WorkflowBlock } from "@/components/workflow/types";
+
 interface DatabaseOption {
   id: string;
   name: string;
@@ -57,11 +49,13 @@ interface QuickInsightDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave?: (insight: {
+    title: string;
     database: string;
     table: string;
     columns: string[];
     chartType: string;
     data: any[];
+    config?: VisualizationConfig;
   }) => void;
 }
 
@@ -139,13 +133,6 @@ const DATABASES: DatabaseOption[] = [
   },
 ];
 
-const CHART_TYPES = [
-  { id: "bar", label: "Bar Chart", icon: BarChart3 },
-  { id: "line", label: "Line Chart", icon: BarChart3 },
-  { id: "pie", label: "Pie Chart", icon: BarChart3 },
-  { id: "area", label: "Area Chart", icon: BarChart3 },
-];
-
 type Step = "database" | "table" | "columns" | "visualize";
 
 export const QuickInsightDialog = ({
@@ -157,7 +144,14 @@ export const QuickInsightDialog = ({
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseOption | null>(null);
   const [selectedTable, setSelectedTable] = useState<TableOption | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
-  const [chartType, setChartType] = useState("bar");
+  const [chartType, setChartType] = useState<ChartType | "table">("bar");
+  const [insightTitle, setInsightTitle] = useState("");
+  const [vizConfig, setVizConfig] = useState<VisualizationConfig>({
+    colorScheme: "default",
+    showLegend: true,
+    showGrid: true,
+    showDataLabels: false,
+  });
 
   const steps: { key: Step; label: string; icon: React.ElementType }[] = [
     { key: "database", label: "Database", icon: Database },
@@ -174,6 +168,13 @@ export const QuickInsightDialog = ({
     setSelectedTable(null);
     setSelectedColumns([]);
     setChartType("bar");
+    setInsightTitle("");
+    setVizConfig({
+      colorScheme: "default",
+      showLegend: true,
+      showGrid: true,
+      showDataLabels: false,
+    });
   };
 
   const handleClose = () => {
@@ -204,6 +205,10 @@ export const QuickInsightDialog = ({
 
   const handleContinueToVisualize = () => {
     if (selectedColumns.length > 0) {
+      // Auto-generate a title if not set
+      if (!insightTitle && selectedTable) {
+        setInsightTitle(`${selectedTable.name} Analysis`);
+      }
       setStep("visualize");
     }
   };
@@ -239,14 +244,39 @@ export const QuickInsightDialog = ({
     });
   }, [selectedTable, selectedColumns]);
 
+  // Create mock workflow for ChartPreview
+  const mockWorkflow: WorkflowBlock[] = useMemo(() => {
+    return [
+      {
+        id: "viz-1",
+        instanceId: "viz-instance-1",
+        type: `${chartType}-chart`,
+        label: "Chart",
+        icon: "BarChart2",
+        category: "visualize",
+        position: { x: 0, y: 0 },
+        config: {
+          chartType: chartType === "table" ? "bar" : chartType,
+          colorScheme: vizConfig.colorScheme,
+          showLegend: vizConfig.showLegend,
+          showGrid: vizConfig.showGrid,
+          showDataLabels: vizConfig.showDataLabels,
+          chartTitle: vizConfig.chartTitle,
+        },
+      },
+    ];
+  }, [chartType, vizConfig]);
+
   const handleSave = () => {
     if (onSave && selectedDatabase && selectedTable) {
       onSave({
+        title: insightTitle || `${selectedTable.name} Analysis`,
         database: selectedDatabase.name,
         table: selectedTable.name,
         columns: selectedColumns,
-        chartType,
+        chartType: chartType === "table" ? "bar" : chartType,
         data: chartData,
+        config: vizConfig,
       });
     }
     handleClose();
@@ -254,7 +284,7 @@ export const QuickInsightDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl p-0 gap-0">
+      <DialogContent className="max-w-5xl p-0 gap-0 max-h-[90vh] overflow-hidden">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="text-xl">Quick Insight</DialogTitle>
           <p className="text-sm text-muted-foreground">
@@ -307,167 +337,144 @@ export const QuickInsightDialog = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 min-h-[300px]">
-          {step === "database" && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground mb-4">
-                Choose a database to start
-              </p>
-              {DATABASES.map((db) => (
-                <button
-                  key={db.id}
-                  onClick={() => handleSelectDatabase(db)}
-                  className="w-full p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/50 transition-all text-left flex items-center gap-3 group"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Database className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{db.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {db.tables.length} tables
-                    </p>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="flex-1 overflow-hidden">
+          {step === "visualize" ? (
+            <div className="flex h-[450px]">
+              {/* Preview Area */}
+              <div className="flex-1 p-6 overflow-auto">
+                {/* Title Input */}
+                <div className="mb-4 space-y-2">
+                  <Label className="text-sm flex items-center gap-2">
+                    <Type className="w-4 h-4" />
+                    Insight Title
+                  </Label>
+                  <Input
+                    placeholder="Enter insight title..."
+                    value={insightTitle}
+                    onChange={(e) => setInsightTitle(e.target.value)}
+                    className="max-w-md"
+                  />
+                </div>
 
-          {step === "table" && selectedDatabase && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground mb-4">
-                Select a table from <span className="font-medium text-foreground">{selectedDatabase.name}</span>
-              </p>
-              {selectedDatabase.tables.map((table) => (
-                <button
-                  key={table.id}
-                  onClick={() => handleSelectTable(table)}
-                  className="w-full p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/50 transition-all text-left flex items-center gap-3 group"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-chart-2/10 flex items-center justify-center">
-                    <Table className="w-5 h-5 text-chart-2" />
+                {/* Chart Preview */}
+                <div className="border rounded-lg p-4 bg-muted/30">
+                  <p className="text-sm text-muted-foreground mb-3">Preview</p>
+                  <div className="h-[280px]">
+                    <ChartPreview workflow={mockWorkflow} data={chartData} />
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{table.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {table.columns.length} columns
-                    </p>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                </button>
-              ))}
-            </div>
-          )}
+                </div>
+              </div>
 
-          {step === "columns" && selectedTable && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Select columns to visualize from <span className="font-medium text-foreground">{selectedTable.name}</span>
-              </p>
-              <ScrollArea className="h-[200px]">
+              {/* Settings Panel */}
+              <aside className="w-72 border-l border-border/60 bg-card/50 flex flex-col overflow-hidden">
+                <div className="h-14 px-4 border-b border-border/60 flex items-center gap-2 shrink-0">
+                  <Palette className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="font-medium text-foreground text-sm">Visualization Options</h3>
+                </div>
+                <ScrollArea className="flex-1">
+                  <SQLVisualizationPanel
+                    chartType={chartType}
+                    onChartTypeChange={setChartType}
+                    config={vizConfig}
+                    onConfigChange={setVizConfig}
+                    columns={selectedColumns}
+                  />
+                </ScrollArea>
+              </aside>
+            </div>
+          ) : (
+            <div className="p-6 min-h-[300px]">
+              {step === "database" && (
                 <div className="space-y-2">
-                  {selectedTable.columns.map((column) => (
-                    <label
-                      key={column.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-all"
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Choose a database to start
+                  </p>
+                  {DATABASES.map((db) => (
+                    <button
+                      key={db.id}
+                      onClick={() => handleSelectDatabase(db)}
+                      className="w-full p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/50 transition-all text-left flex items-center gap-3 group"
                     >
-                      <Checkbox
-                        checked={selectedColumns.includes(column.name)}
-                        onCheckedChange={() => toggleColumn(column.name)}
-                      />
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Database className="w-5 h-5 text-primary" />
+                      </div>
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{column.name}</p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {column.type}
+                        <p className="font-medium">{db.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {db.tables.length} tables
                         </p>
                       </div>
-                    </label>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </button>
                   ))}
                 </div>
-              </ScrollArea>
-              <div className="pt-2">
-                <p className="text-sm text-muted-foreground">
-                  {selectedColumns.length} columns selected
-                </p>
-              </div>
-            </div>
-          )}
+              )}
 
-          {step === "visualize" && (
-            <div className="space-y-4">
-              {/* Chart Type Selection */}
-              <div>
-                <p className="text-sm text-muted-foreground mb-3">Chart Type</p>
-                <div className="flex gap-2">
-                  {CHART_TYPES.map((type) => (
-                    <Button
-                      key={type.id}
-                      variant={chartType === type.id ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setChartType(type.id)}
-                      className="flex-1"
+              {step === "table" && selectedDatabase && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Select a table from <span className="font-medium text-foreground">{selectedDatabase.name}</span>
+                  </p>
+                  {selectedDatabase.tables.map((table) => (
+                    <button
+                      key={table.id}
+                      onClick={() => handleSelectTable(table)}
+                      className="w-full p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/50 transition-all text-left flex items-center gap-3 group"
                     >
-                      {type.label}
-                    </Button>
+                      <div className="w-10 h-10 rounded-lg bg-chart-2/10 flex items-center justify-center">
+                        <Table className="w-5 h-5 text-chart-2" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{table.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {table.columns.length} columns
+                        </p>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </button>
                   ))}
                 </div>
-              </div>
+              )}
 
-              {/* Preview */}
-              <div className="border rounded-lg p-4 bg-muted/30">
-                <p className="text-sm text-muted-foreground mb-3">Preview</p>
-                <div className="h-[180px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    {chartType === "bar" ? (
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" fontSize={12} />
-                        <YAxis fontSize={12} />
-                        <Tooltip />
-                        <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    ) : chartType === "line" ? (
-                      <LineChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" fontSize={12} />
-                        <YAxis fontSize={12} />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} />
-                      </LineChart>
-                    ) : chartType === "area" ? (
-                      <AreaChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" fontSize={12} />
-                        <YAxis fontSize={12} />
-                        <Tooltip />
-                        <Area type="monotone" dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} />
-                      </AreaChart>
-                    ) : (
-                      <PieChart>
-                        <Pie
-                          data={chartData}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={70}
-                          dataKey="value"
+              {step === "columns" && selectedTable && (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Select columns to visualize from <span className="font-medium text-foreground">{selectedTable.name}</span>
+                  </p>
+                  <ScrollArea className="h-[200px]">
+                    <div className="space-y-2">
+                      {selectedTable.columns.map((column) => (
+                        <label
+                          key={column.id}
+                          className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-all"
                         >
-                          {chartData.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    )}
-                  </ResponsiveContainer>
+                          <Checkbox
+                            checked={selectedColumns.includes(column.name)}
+                            onCheckedChange={() => toggleColumn(column.name)}
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{column.name}</p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {column.type}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                  <div className="pt-2">
+                    <p className="text-sm text-muted-foreground">
+                      {selectedColumns.length} columns selected
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-6 pt-0 flex items-center justify-between">
+        <div className="p-6 pt-0 flex items-center justify-between border-t mt-0 pt-4">
           <Button
             variant="ghost"
             onClick={step === "database" ? handleClose : handleBack}
@@ -487,7 +494,7 @@ export const QuickInsightDialog = ({
           )}
 
           {step === "visualize" && (
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={!insightTitle.trim()}>
               <Check className="w-4 h-4 mr-1" />
               Create Insight
             </Button>
