@@ -13,12 +13,14 @@ import {
   Trash2,
   LayoutDashboard,
   RefreshCw,
+  Zap,
 } from "lucide-react";
 import { EnhancedChartCard } from "@/components/dashboard/EnhancedChartCard";
 import { AIChatPanel } from "@/components/dashboard/AIChatPanel";
 import { AddInsightDialog } from "@/components/dashboard/AddInsightDialog";
 import { DashboardSettingsDialog } from "@/components/dashboard/DashboardSettingsDialog";
 import { ShareDashboardDialog } from "@/components/dashboard/ShareDashboardDialog";
+import { QuickInsightDialog } from "@/components/dashboard/QuickInsightDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -96,6 +98,7 @@ export const DashboardViewPage = () => {
   const [addInsightOpen, setAddInsightOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [quickInsightOpen, setQuickInsightOpen] = useState(false);
   const [expandedCharts, setExpandedCharts] = useState<Set<string>>(new Set());
   const [isPublic, setIsPublic] = useState(false);
   const { toast } = useToast();
@@ -166,6 +169,18 @@ export const DashboardViewPage = () => {
     toast({ title: "Insight added" });
   };
 
+  const handleQuickInsightSave = (insight: any) => {
+    const newChart: DashboardChart = {
+      id: Date.now().toString(),
+      title: insight.title,
+      type: insight.chartType as ChartType,
+      data: insight.data,
+      colorScheme: insight.config?.colorScheme,
+    };
+    setCharts((prev) => [...prev, newChart]);
+    toast({ title: "Quick insight created", description: `"${insight.title}" added to dashboard` });
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -185,6 +200,10 @@ export const DashboardViewPage = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setQuickInsightOpen(true)}>
+            <Zap className="w-4 h-4 mr-2" />
+            Quick Insight
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setAddInsightOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Add Insight
@@ -305,6 +324,12 @@ export const DashboardViewPage = () => {
         dashboardName={settings.name}
         isPublic={isPublic}
         onVisibilityChange={setIsPublic}
+      />
+
+      <QuickInsightDialog
+        open={quickInsightOpen}
+        onOpenChange={setQuickInsightOpen}
+        onSave={handleQuickInsightSave}
       />
     </div>
   );
