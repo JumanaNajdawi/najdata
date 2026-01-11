@@ -329,11 +329,14 @@ export const IntegrationsSettings = () => {
                 </div>
               </>
             )}
-            {selectedIntegration?.category !== "database" && (
+            {selectedIntegration && selectedIntegration.category !== "database" && (
               <div className="text-center py-8">
-                <selectedIntegration.icon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                {(() => {
+                  const IconComponent = selectedIntegration.icon;
+                  return <IconComponent className="w-12 h-12 text-muted-foreground mx-auto mb-4" />;
+                })()}
                 <p className="text-muted-foreground">
-                  You'll be redirected to {selectedIntegration?.name} to complete the connection.
+                  You'll be redirected to {selectedIntegration.name} to complete the connection.
                 </p>
               </div>
             )}
