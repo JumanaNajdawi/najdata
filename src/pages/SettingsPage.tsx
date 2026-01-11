@@ -1,7 +1,6 @@
 import {
   User,
   Users,
-  Key,
   Plug,
   CreditCard,
   Bell,
@@ -11,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { TeamSettings } from "@/components/settings/TeamSettings";
-import { APIKeysSettings } from "@/components/settings/APIKeysSettings";
 import { IntegrationsSettings } from "@/components/settings/IntegrationsSettings";
 import { BillingSettings } from "@/components/settings/BillingSettings";
 import { NotificationsSettings } from "@/components/settings/NotificationsSettings";
@@ -20,7 +18,6 @@ import { SecuritySettings } from "@/components/settings/SecuritySettings";
 const tabs = [
   { id: "profile", label: "Profile", icon: User },
   { id: "team", label: "Team Members", icon: Users },
-  { id: "api", label: "API Keys", icon: Key },
   { id: "integrations", label: "Integrations", icon: Plug },
   { id: "billing", label: "Billing", icon: CreditCard },
   { id: "notifications", label: "Notifications", icon: Bell },
@@ -63,10 +60,10 @@ export const SettingsPage = () => {
         <main className="flex-1 p-6">
           {activeTab === "profile" && <ProfileSettings />}
           {activeTab === "team" && <TeamSettings />}
-          {activeTab === "api" && <APIKeysSettings />}
           {activeTab === "integrations" && <IntegrationsSettings />}
           {activeTab === "billing" && <BillingSettings />}
           {activeTab === "notifications" && <NotificationsSettings />}
+          {activeTab === "security" && <SecuritySettings />}
           {activeTab === "security" && <SecuritySettings />}
         </main>
       </div>
