@@ -214,6 +214,8 @@ export const VisualizationStep = ({
                     config={vizConfig}
                     onConfigChange={setVizConfig}
                     columns={columns}
+                    hideChartTitle={true}
+                    showTransformData={true}
                   />
                 </div>
               </TabsContent>
@@ -235,6 +237,8 @@ export const VisualizationStep = ({
             config={vizConfig}
             onConfigChange={setVizConfig}
             columns={columns}
+            hideChartTitle={true}
+            showTransformData={true}
           />
         </div>
       </aside>
