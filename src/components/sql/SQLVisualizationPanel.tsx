@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   BarChart2,
   LineChart as LineChartIcon,
   PieChart as PieChartIcon,
@@ -23,6 +29,11 @@ import {
   Table2,
   Palette,
   Settings2,
+  ChevronDown,
+  ArrowUpDown,
+  Calculator,
+  Layers,
+  Hash,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChartType, COLOR_SCHEMES } from "@/components/workflow/types";
@@ -34,6 +45,18 @@ interface SQLVisualizationPanelProps {
   onConfigChange: (config: VisualizationConfig) => void;
   columns?: string[];
   hideChartTitle?: boolean;
+  showTransformData?: boolean;
+}
+
+export interface TransformConfig {
+  filterColumn?: string;
+  filterOperator?: string;
+  filterValue?: string;
+  sortColumn?: string;
+  sortDirection?: "asc" | "desc";
+  aggregation?: string;
+  groupByColumn?: string;
+  limitRows?: number;
 }
 
 export interface VisualizationConfig {
@@ -49,6 +72,7 @@ export interface VisualizationConfig {
   barRadius?: number;
   lineStrokeWidth?: number;
   areaOpacity?: number;
+  transform?: TransformConfig;
 }
 
 const CHART_TYPES: { type: ChartType | "table"; icon: React.ElementType; label: string }[] = [
@@ -65,6 +89,25 @@ const CHART_TYPES: { type: ChartType | "table"; icon: React.ElementType; label: 
   { type: "table", icon: Table2, label: "Table" },
 ];
 
+const FILTER_OPERATORS = [
+  { value: "equals", label: "Equals" },
+  { value: "not_equals", label: "Not equals" },
+  { value: "contains", label: "Contains" },
+  { value: "greater_than", label: "Greater than" },
+  { value: "less_than", label: "Less than" },
+  { value: "is_null", label: "Is null" },
+  { value: "is_not_null", label: "Is not null" },
+];
+
+const AGGREGATION_FUNCTIONS = [
+  { value: "none", label: "None" },
+  { value: "sum", label: "SUM" },
+  { value: "avg", label: "AVG" },
+  { value: "count", label: "COUNT" },
+  { value: "min", label: "MIN" },
+  { value: "max", label: "MAX" },
+];
+
 export const SQLVisualizationPanel = ({
   chartType,
   onChartTypeChange,
@@ -72,9 +115,19 @@ export const SQLVisualizationPanel = ({
   onConfigChange,
   columns = [],
   hideChartTitle = false,
+  showTransformData = false,
 }: SQLVisualizationPanelProps) => {
+  const [transformOpen, setTransformOpen] = useState(true);
+  
   const updateConfig = (updates: Partial<VisualizationConfig>) => {
     onConfigChange({ ...config, ...updates });
+  };
+
+  const updateTransform = (updates: Partial<TransformConfig>) => {
+    onConfigChange({
+      ...config,
+      transform: { ...config.transform, ...updates },
+    });
   };
 
   const showAxisConfig = !["pie", "donut", "kpi", "gauge", "table", "radar", "funnel"].includes(
@@ -346,6 +399,167 @@ export const SQLVisualizationPanel = ({
               </div>
             )}
           </div>
+        )}
+
+        {/* Transform Data Section */}
+        {showTransformData && columns.length > 0 && (
+          <Collapsible open={transformOpen} onOpenChange={setTransformOpen}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <div className="flex items-center gap-2">
+                <Settings2 className="w-3.5 h-3.5" />
+                Transform Data
+              </div>
+              <ChevronDown className={cn("w-4 h-4 transition-transform", transformOpen && "rotate-180")} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 pt-2">
+              {/* Filter */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Filter className="w-3.5 h-3.5" />
+                  Filter
+                </div>
+                <Select
+                  value={config.transform?.filterColumn || ""}
+                  onValueChange={(value) => updateTransform({ filterColumn: value })}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select column" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {columns.map((col) => (
+                      <SelectItem key={col} value={col}>{col}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {config.transform?.filterColumn && (
+                  <>
+                    <Select
+                      value={config.transform?.filterOperator || ""}
+                      onValueChange={(value) => updateTransform({ filterOperator: value })}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Select operator" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FILTER_OPERATORS.map((op) => (
+                          <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!["is_null", "is_not_null"].includes(config.transform?.filterOperator || "") && (
+                      <Input
+                        placeholder="Filter value..."
+                        value={config.transform?.filterValue || ""}
+                        onChange={(e) => updateTransform({ filterValue: e.target.value })}
+                        className="h-8 text-sm"
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Sort */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <ArrowUpDown className="w-3.5 h-3.5" />
+                  Sort
+                </div>
+                <div className="flex gap-2">
+                  <Select
+                    value={config.transform?.sortColumn || ""}
+                    onValueChange={(value) => updateTransform({ sortColumn: value })}
+                  >
+                    <SelectTrigger className="h-8 text-sm flex-1">
+                      <SelectValue placeholder="Column" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {columns.map((col) => (
+                        <SelectItem key={col} value={col}>{col}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={config.transform?.sortDirection || "asc"}
+                    onValueChange={(value) => updateTransform({ sortDirection: value as "asc" | "desc" })}
+                  >
+                    <SelectTrigger className="h-8 text-sm w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="asc">Asc</SelectItem>
+                      <SelectItem value="desc">Desc</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Aggregation */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Calculator className="w-3.5 h-3.5" />
+                  Aggregation
+                </div>
+                <Select
+                  value={config.transform?.aggregation || "none"}
+                  onValueChange={(value) => updateTransform({ aggregation: value })}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGGREGATION_FUNCTIONS.map((fn) => (
+                      <SelectItem key={fn.value} value={fn.value}>{fn.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Group By */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Layers className="w-3.5 h-3.5" />
+                  Group By
+                </div>
+                <Select
+                  value={config.transform?.groupByColumn || ""}
+                  onValueChange={(value) => updateTransform({ groupByColumn: value })}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select column" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {columns.map((col) => (
+                      <SelectItem key={col} value={col}>{col}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Limit Rows */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Hash className="w-3.5 h-3.5" />
+                  Limit Rows
+                </div>
+                <Select
+                  value={String(config.transform?.limitRows || "")}
+                  onValueChange={(value) => updateTransform({ limitRows: value ? parseInt(value) : undefined })}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="No limit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No limit</SelectItem>
+                    <SelectItem value="10">10 rows</SelectItem>
+                    <SelectItem value="25">25 rows</SelectItem>
+                    <SelectItem value="50">50 rows</SelectItem>
+                    <SelectItem value="100">100 rows</SelectItem>
+                    <SelectItem value="500">500 rows</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         )}
       </div>
     </div>
