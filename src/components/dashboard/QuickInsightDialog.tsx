@@ -10,17 +10,36 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Database,
   Table,
   Columns3,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   BarChart3,
   Check,
   ArrowRight,
   Palette,
   Type,
+  Wand2,
+  Filter,
+  ArrowUpDown,
+  Calculator,
+  Sigma,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChartPreview } from "@/components/workflow/ChartPreview";
@@ -43,6 +62,33 @@ interface ColumnOption {
   id: string;
   name: string;
   type: "string" | "number" | "date";
+}
+
+interface SelectedColumn {
+  databaseId: string;
+  databaseName: string;
+  tableId: string;
+  tableName: string;
+  columnId: string;
+  columnName: string;
+  columnType: "string" | "number" | "date";
+}
+
+interface TransformConfig {
+  filterEnabled: boolean;
+  filterColumn: string;
+  filterOperator: string;
+  filterValue: string;
+  sortEnabled: boolean;
+  sortColumn: string;
+  sortDirection: "asc" | "desc";
+  aggregateEnabled: boolean;
+  aggregateFunction: string;
+  aggregateColumn: string;
+  groupByEnabled: boolean;
+  groupByColumn: string;
+  limitEnabled: boolean;
+  limitValue: number;
 }
 
 interface QuickInsightDialogProps {
@@ -133,47 +179,77 @@ const DATABASES: DatabaseOption[] = [
   },
 ];
 
-type Step = "database" | "table" | "columns" | "visualize";
+type Step = "select-data" | "visualize";
 
 export const QuickInsightDialog = ({
   open,
   onOpenChange,
   onSave,
 }: QuickInsightDialogProps) => {
-  const [step, setStep] = useState<Step>("database");
-  const [selectedDatabase, setSelectedDatabase] = useState<DatabaseOption | null>(null);
-  const [selectedTable, setSelectedTable] = useState<TableOption | null>(null);
-  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [step, setStep] = useState<Step>("select-data");
+  const [selectedColumns, setSelectedColumns] = useState<SelectedColumn[]>([]);
   const [chartType, setChartType] = useState<ChartType | "table">("bar");
   const [insightTitle, setInsightTitle] = useState("");
+  const [expandedDatabases, setExpandedDatabases] = useState<string[]>([]);
+  const [expandedTables, setExpandedTables] = useState<string[]>([]);
   const [vizConfig, setVizConfig] = useState<VisualizationConfig>({
     colorScheme: "default",
     showLegend: true,
     showGrid: true,
     showDataLabels: false,
   });
+  const [transformConfig, setTransformConfig] = useState<TransformConfig>({
+    filterEnabled: false,
+    filterColumn: "",
+    filterOperator: "equals",
+    filterValue: "",
+    sortEnabled: false,
+    sortColumn: "",
+    sortDirection: "asc",
+    aggregateEnabled: false,
+    aggregateFunction: "sum",
+    aggregateColumn: "",
+    groupByEnabled: false,
+    groupByColumn: "",
+    limitEnabled: false,
+    limitValue: 100,
+  });
 
   const steps: { key: Step; label: string; icon: React.ElementType }[] = [
-    { key: "database", label: "Database", icon: Database },
-    { key: "table", label: "Table", icon: Table },
-    { key: "columns", label: "Columns", icon: Columns3 },
+    { key: "select-data", label: "Select Data", icon: Columns3 },
     { key: "visualize", label: "Visualize", icon: BarChart3 },
   ];
 
   const currentStepIndex = steps.findIndex((s) => s.key === step);
 
   const resetState = () => {
-    setStep("database");
-    setSelectedDatabase(null);
-    setSelectedTable(null);
+    setStep("select-data");
     setSelectedColumns([]);
     setChartType("bar");
     setInsightTitle("");
+    setExpandedDatabases([]);
+    setExpandedTables([]);
     setVizConfig({
       colorScheme: "default",
       showLegend: true,
       showGrid: true,
       showDataLabels: false,
+    });
+    setTransformConfig({
+      filterEnabled: false,
+      filterColumn: "",
+      filterOperator: "equals",
+      filterValue: "",
+      sortEnabled: false,
+      sortColumn: "",
+      sortDirection: "asc",
+      aggregateEnabled: false,
+      aggregateFunction: "sum",
+      aggregateColumn: "",
+      groupByEnabled: false,
+      groupByColumn: "",
+      limitEnabled: false,
+      limitValue: 100,
     });
   };
 
@@ -182,67 +258,95 @@ export const QuickInsightDialog = ({
     onOpenChange(false);
   };
 
-  const handleSelectDatabase = (db: DatabaseOption) => {
-    setSelectedDatabase(db);
-    setSelectedTable(null);
-    setSelectedColumns([]);
-    setStep("table");
+  const toggleDatabase = (dbId: string) => {
+    setExpandedDatabases((prev) =>
+      prev.includes(dbId) ? prev.filter((id) => id !== dbId) : [...prev, dbId]
+    );
   };
 
-  const handleSelectTable = (table: TableOption) => {
-    setSelectedTable(table);
-    setSelectedColumns([]);
-    setStep("columns");
+  const toggleTable = (tableId: string) => {
+    setExpandedTables((prev) =>
+      prev.includes(tableId)
+        ? prev.filter((id) => id !== tableId)
+        : [...prev, tableId]
+    );
   };
 
-  const toggleColumn = (columnName: string) => {
-    setSelectedColumns((prev) =>
-      prev.includes(columnName)
-        ? prev.filter((c) => c !== columnName)
-        : [...prev, columnName]
+  const toggleColumn = (
+    db: DatabaseOption,
+    table: TableOption,
+    column: ColumnOption
+  ) => {
+    const existing = selectedColumns.find(
+      (sc) => sc.columnId === column.id && sc.tableId === table.id
+    );
+    if (existing) {
+      setSelectedColumns((prev) =>
+        prev.filter(
+          (sc) => !(sc.columnId === column.id && sc.tableId === table.id)
+        )
+      );
+    } else {
+      setSelectedColumns((prev) => [
+        ...prev,
+        {
+          databaseId: db.id,
+          databaseName: db.name,
+          tableId: table.id,
+          tableName: table.name,
+          columnId: column.id,
+          columnName: column.name,
+          columnType: column.type,
+        },
+      ]);
+    }
+  };
+
+  const isColumnSelected = (tableId: string, columnId: string) => {
+    return selectedColumns.some(
+      (sc) => sc.columnId === columnId && sc.tableId === tableId
     );
   };
 
   const handleContinueToVisualize = () => {
     if (selectedColumns.length > 0) {
       // Auto-generate a title if not set
-      if (!insightTitle && selectedTable) {
-        setInsightTitle(`${selectedTable.name} Analysis`);
+      if (!insightTitle) {
+        const tables = [...new Set(selectedColumns.map((sc) => sc.tableName))];
+        setInsightTitle(`${tables.join(" & ")} Analysis`);
       }
       setStep("visualize");
     }
   };
 
   const handleBack = () => {
-    if (step === "table") {
-      setStep("database");
-      setSelectedDatabase(null);
-    } else if (step === "columns") {
-      setStep("table");
-      setSelectedTable(null);
-    } else if (step === "visualize") {
-      setStep("columns");
+    if (step === "visualize") {
+      setStep("select-data");
     }
   };
 
+  // Get all selected column names for visualization panel
+  const columnNames = useMemo(() => {
+    return selectedColumns.map((sc) => sc.columnName);
+  }, [selectedColumns]);
+
   // Generate sample chart data based on selected columns
   const chartData = useMemo(() => {
-    if (!selectedTable || selectedColumns.length === 0) return [];
+    if (selectedColumns.length === 0) return [];
 
     const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
     return labels.map((label) => {
       const dataPoint: any = { name: label };
-      selectedColumns.forEach((col) => {
-        const column = selectedTable.columns.find((c) => c.name === col);
-        if (column?.type === "number") {
-          dataPoint[col] = Math.floor(Math.random() * 1000) + 100;
+      selectedColumns.forEach((sc) => {
+        if (sc.columnType === "number") {
+          dataPoint[sc.columnName] = Math.floor(Math.random() * 1000) + 100;
         } else {
           dataPoint.value = Math.floor(Math.random() * 1000) + 100;
         }
       });
       return dataPoint;
     });
-  }, [selectedTable, selectedColumns]);
+  }, [selectedColumns]);
 
   // Create mock workflow for ChartPreview
   const mockWorkflow: WorkflowBlock[] = useMemo(() => {
@@ -261,19 +365,20 @@ export const QuickInsightDialog = ({
           showLegend: vizConfig.showLegend,
           showGrid: vizConfig.showGrid,
           showDataLabels: vizConfig.showDataLabels,
-          chartTitle: vizConfig.chartTitle,
         },
       },
     ];
   }, [chartType, vizConfig]);
 
   const handleSave = () => {
-    if (onSave && selectedDatabase && selectedTable) {
+    if (onSave && selectedColumns.length > 0) {
+      const databases = [...new Set(selectedColumns.map((sc) => sc.databaseName))];
+      const tables = [...new Set(selectedColumns.map((sc) => sc.tableName))];
       onSave({
-        title: insightTitle || `${selectedTable.name} Analysis`,
-        database: selectedDatabase.name,
-        table: selectedTable.name,
-        columns: selectedColumns,
+        title: insightTitle || `${tables.join(" & ")} Analysis`,
+        database: databases.join(", "),
+        table: tables.join(", "),
+        columns: columnNames,
         chartType: chartType === "table" ? "bar" : chartType,
         data: chartData,
         config: vizConfig,
@@ -282,19 +387,38 @@ export const QuickInsightDialog = ({
     handleClose();
   };
 
+  const updateTransformConfig = (updates: Partial<TransformConfig>) => {
+    setTransformConfig((prev) => ({ ...prev, ...updates }));
+  };
+
+  // Group selected columns by database and table for display
+  const groupedSelections = useMemo(() => {
+    const groups: Record<string, Record<string, SelectedColumn[]>> = {};
+    selectedColumns.forEach((sc) => {
+      if (!groups[sc.databaseName]) {
+        groups[sc.databaseName] = {};
+      }
+      if (!groups[sc.databaseName][sc.tableName]) {
+        groups[sc.databaseName][sc.tableName] = [];
+      }
+      groups[sc.databaseName][sc.tableName].push(sc);
+    });
+    return groups;
+  }, [selectedColumns]);
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-5xl p-0 gap-0 max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-6xl p-0 gap-0 max-h-[90vh] overflow-hidden">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="text-xl">Quick Insight</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Select your data and create a visualization in seconds
+            Select columns from any database to create a visualization
           </p>
         </DialogHeader>
 
         {/* Progress Steps */}
         <div className="px-6 py-4 border-b">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-center gap-8">
             {steps.map((s, index) => {
               const Icon = s.icon;
               const isActive = s.key === step;
@@ -339,7 +463,7 @@ export const QuickInsightDialog = ({
         {/* Content */}
         <div className="flex-1 overflow-hidden">
           {step === "visualize" ? (
-            <div className="flex h-[450px]">
+            <div className="flex h-[500px]">
               {/* Preview Area */}
               <div className="flex-1 p-6 overflow-auto">
                 {/* Title Input */}
@@ -366,109 +490,424 @@ export const QuickInsightDialog = ({
               </div>
 
               {/* Settings Panel */}
-              <aside className="w-72 border-l border-border/60 bg-card/50 flex flex-col overflow-hidden">
-                <div className="h-14 px-4 border-b border-border/60 flex items-center gap-2 shrink-0">
-                  <Palette className="w-4 h-4 text-muted-foreground" />
-                  <h3 className="font-medium text-foreground text-sm">Visualization Options</h3>
-                </div>
+              <aside className="w-80 border-l border-border/60 bg-card/50 flex flex-col overflow-hidden">
                 <ScrollArea className="flex-1">
-                  <SQLVisualizationPanel
-                    chartType={chartType}
-                    onChartTypeChange={setChartType}
-                    config={vizConfig}
-                    onConfigChange={setVizConfig}
-                    columns={selectedColumns}
-                  />
+                  {/* Visualization Options - without chart title */}
+                  <div className="border-b border-border/60">
+                    <SQLVisualizationPanel
+                      chartType={chartType}
+                      onChartTypeChange={setChartType}
+                      config={{ ...vizConfig, chartTitle: undefined }}
+                      onConfigChange={(newConfig) =>
+                        setVizConfig({ ...newConfig, chartTitle: undefined })
+                      }
+                      columns={columnNames}
+                      hideChartTitle
+                    />
+                  </div>
+
+                  {/* Transform Data Section */}
+                  <div className="p-3 space-y-3">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Wand2 className="w-4 h-4 text-muted-foreground" />
+                      <h3 className="text-sm font-semibold text-foreground">Transform Data</h3>
+                    </div>
+
+                    {/* Filter */}
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-2 rounded-lg hover:bg-muted/50 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Filter className="w-4 h-4 text-muted-foreground" />
+                          <span>Filter</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={transformConfig.filterEnabled}
+                            onCheckedChange={(checked) =>
+                              updateTransformConfig({ filterEnabled: checked })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pl-6 pr-2 pt-2 space-y-2">
+                        <Select
+                          value={transformConfig.filterColumn}
+                          onValueChange={(v) =>
+                            updateTransformConfig({ filterColumn: v })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Select column" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {columnNames.map((col) => (
+                              <SelectItem key={col} value={col}>
+                                {col}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex gap-2">
+                          <Select
+                            value={transformConfig.filterOperator}
+                            onValueChange={(v) =>
+                              updateTransformConfig({ filterOperator: v })
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="equals">=</SelectItem>
+                              <SelectItem value="not_equals">≠</SelectItem>
+                              <SelectItem value="greater">&gt;</SelectItem>
+                              <SelectItem value="less">&lt;</SelectItem>
+                              <SelectItem value="contains">Contains</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            placeholder="Value"
+                            className="h-8 text-xs"
+                            value={transformConfig.filterValue}
+                            onChange={(e) =>
+                              updateTransformConfig({ filterValue: e.target.value })
+                            }
+                          />
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Sort */}
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-2 rounded-lg hover:bg-muted/50 text-sm">
+                        <div className="flex items-center gap-2">
+                          <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+                          <span>Sort</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={transformConfig.sortEnabled}
+                            onCheckedChange={(checked) =>
+                              updateTransformConfig({ sortEnabled: checked })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pl-6 pr-2 pt-2 space-y-2">
+                        <Select
+                          value={transformConfig.sortColumn}
+                          onValueChange={(v) =>
+                            updateTransformConfig({ sortColumn: v })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Select column" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {columnNames.map((col) => (
+                              <SelectItem key={col} value={col}>
+                                {col}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={transformConfig.sortDirection}
+                          onValueChange={(v: "asc" | "desc") =>
+                            updateTransformConfig({ sortDirection: v })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="asc">Ascending</SelectItem>
+                            <SelectItem value="desc">Descending</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Aggregate */}
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-2 rounded-lg hover:bg-muted/50 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Calculator className="w-4 h-4 text-muted-foreground" />
+                          <span>Aggregate</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={transformConfig.aggregateEnabled}
+                            onCheckedChange={(checked) =>
+                              updateTransformConfig({ aggregateEnabled: checked })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pl-6 pr-2 pt-2 space-y-2">
+                        <Select
+                          value={transformConfig.aggregateFunction}
+                          onValueChange={(v) =>
+                            updateTransformConfig({ aggregateFunction: v })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sum">SUM</SelectItem>
+                            <SelectItem value="avg">AVG</SelectItem>
+                            <SelectItem value="count">COUNT</SelectItem>
+                            <SelectItem value="min">MIN</SelectItem>
+                            <SelectItem value="max">MAX</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={transformConfig.aggregateColumn}
+                          onValueChange={(v) =>
+                            updateTransformConfig({ aggregateColumn: v })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Select column" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {columnNames.map((col) => (
+                              <SelectItem key={col} value={col}>
+                                {col}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Group By */}
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-2 rounded-lg hover:bg-muted/50 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Sigma className="w-4 h-4 text-muted-foreground" />
+                          <span>Group By</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={transformConfig.groupByEnabled}
+                            onCheckedChange={(checked) =>
+                              updateTransformConfig({ groupByEnabled: checked })
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pl-6 pr-2 pt-2 space-y-2">
+                        <Select
+                          value={transformConfig.groupByColumn}
+                          onValueChange={(v) =>
+                            updateTransformConfig({ groupByColumn: v })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Select column" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {columnNames.map((col) => (
+                              <SelectItem key={col} value={col}>
+                                {col}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Limit */}
+                    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground">Limit rows</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          className="h-7 w-20 text-xs"
+                          value={transformConfig.limitValue}
+                          onChange={(e) =>
+                            updateTransformConfig({
+                              limitValue: parseInt(e.target.value) || 100,
+                            })
+                          }
+                        />
+                        <Switch
+                          checked={transformConfig.limitEnabled}
+                          onCheckedChange={(checked) =>
+                            updateTransformConfig({ limitEnabled: checked })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </ScrollArea>
               </aside>
             </div>
           ) : (
-            <div className="p-6 min-h-[300px]">
-              {step === "database" && (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Choose a database to start
-                  </p>
-                  {DATABASES.map((db) => (
-                    <button
-                      key={db.id}
-                      onClick={() => handleSelectDatabase(db)}
-                      className="w-full p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/50 transition-all text-left flex items-center gap-3 group"
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Database className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">{db.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {db.tables.length} tables
-                        </p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {step === "table" && selectedDatabase && (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Select a table from <span className="font-medium text-foreground">{selectedDatabase.name}</span>
-                  </p>
-                  {selectedDatabase.tables.map((table) => (
-                    <button
-                      key={table.id}
-                      onClick={() => handleSelectTable(table)}
-                      className="w-full p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/50 transition-all text-left flex items-center gap-3 group"
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-chart-2/10 flex items-center justify-center">
-                        <Table className="w-5 h-5 text-chart-2" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">{table.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {table.columns.length} columns
-                        </p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {step === "columns" && selectedTable && (
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Select columns to visualize from <span className="font-medium text-foreground">{selectedTable.name}</span>
-                  </p>
-                  <ScrollArea className="h-[200px]">
-                    <div className="space-y-2">
-                      {selectedTable.columns.map((column) => (
-                        <label
-                          key={column.id}
-                          className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-all"
-                        >
-                          <Checkbox
-                            checked={selectedColumns.includes(column.name)}
-                            onCheckedChange={() => toggleColumn(column.name)}
+            <div className="flex h-[450px]">
+              {/* Database/Table Tree */}
+              <div className="flex-1 p-6 overflow-hidden flex flex-col">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Browse databases and select columns from any table
+                </p>
+                <ScrollArea className="flex-1">
+                  <div className="space-y-2 pr-4">
+                    {DATABASES.map((db) => (
+                      <Collapsible
+                        key={db.id}
+                        open={expandedDatabases.includes(db.id)}
+                        onOpenChange={() => toggleDatabase(db.id)}
+                      >
+                        <CollapsibleTrigger className="w-full p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-accent/50 transition-all text-left flex items-center gap-3">
+                          <ChevronRight
+                            className={cn(
+                              "w-4 h-4 text-muted-foreground transition-transform",
+                              expandedDatabases.includes(db.id) && "rotate-90"
+                            )}
                           />
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Database className="w-4 h-4 text-primary" />
+                          </div>
                           <div className="flex-1">
-                            <p className="font-medium text-sm">{column.name}</p>
-                            <p className="text-xs text-muted-foreground capitalize">
-                              {column.type}
+                            <p className="font-medium text-sm">{db.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {db.tables.length} tables
                             </p>
                           </div>
-                        </label>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                  <div className="pt-2">
-                    <p className="text-sm text-muted-foreground">
-                      {selectedColumns.length} columns selected
-                    </p>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pl-8 pt-2 space-y-2">
+                          {db.tables.map((table) => (
+                            <Collapsible
+                              key={table.id}
+                              open={expandedTables.includes(table.id)}
+                              onOpenChange={() => toggleTable(table.id)}
+                            >
+                              <CollapsibleTrigger className="w-full p-2.5 rounded-lg border border-border/60 hover:border-primary/30 hover:bg-accent/30 transition-all text-left flex items-center gap-3">
+                                <ChevronRight
+                                  className={cn(
+                                    "w-3.5 h-3.5 text-muted-foreground transition-transform",
+                                    expandedTables.includes(table.id) && "rotate-90"
+                                  )}
+                                />
+                                <div className="w-6 h-6 rounded bg-chart-2/10 flex items-center justify-center">
+                                  <Table className="w-3.5 h-3.5 text-chart-2" />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-medium text-sm">{table.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {table.columns.length} columns
+                                  </p>
+                                </div>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="pl-10 pt-2 space-y-1">
+                                {table.columns.map((column) => (
+                                  <label
+                                    key={column.id}
+                                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-all"
+                                  >
+                                    <Checkbox
+                                      checked={isColumnSelected(table.id, column.id)}
+                                      onCheckedChange={() =>
+                                        toggleColumn(db, table, column)
+                                      }
+                                    />
+                                    <Columns3 className="w-3.5 h-3.5 text-muted-foreground" />
+                                    <div className="flex-1">
+                                      <p className="text-sm">{column.name}</p>
+                                      <p className="text-xs text-muted-foreground capitalize">
+                                        {column.type}
+                                      </p>
+                                    </div>
+                                  </label>
+                                ))}
+                              </CollapsibleContent>
+                            </Collapsible>
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    ))}
                   </div>
+                </ScrollArea>
+              </div>
+
+              {/* Selected Columns Panel */}
+              <aside className="w-72 border-l border-border/60 bg-card/50 flex flex-col">
+                <div className="h-12 px-4 border-b border-border/60 flex items-center gap-2 shrink-0">
+                  <Check className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="font-medium text-foreground text-sm">
+                    Selected ({selectedColumns.length})
+                  </h3>
                 </div>
-              )}
+                <ScrollArea className="flex-1 p-3">
+                  {selectedColumns.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      Select columns from the tree to include in your insight
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {Object.entries(groupedSelections).map(
+                        ([dbName, tables]) => (
+                          <div key={dbName}>
+                            <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                              <Database className="w-3 h-3" />
+                              {dbName}
+                            </p>
+                            {Object.entries(tables).map(([tableName, cols]) => (
+                              <div key={tableName} className="ml-3 mb-2">
+                                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+                                  <Table className="w-3 h-3" />
+                                  {tableName}
+                                </p>
+                                <div className="ml-3 space-y-1">
+                                  {cols.map((col) => (
+                                    <div
+                                      key={`${col.tableId}-${col.columnId}`}
+                                      className="flex items-center justify-between p-1.5 rounded bg-muted/50 text-xs"
+                                    >
+                                      <span>{col.columnName}</span>
+                                      <button
+                                        onClick={() => {
+                                          const db = DATABASES.find(
+                                            (d) => d.id === col.databaseId
+                                          );
+                                          const table = db?.tables.find(
+                                            (t) => t.id === col.tableId
+                                          );
+                                          const column = table?.columns.find(
+                                            (c) => c.id === col.columnId
+                                          );
+                                          if (db && table && column) {
+                                            toggleColumn(db, table, column);
+                                          }
+                                        }}
+                                        className="text-muted-foreground hover:text-destructive"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+                </ScrollArea>
+              </aside>
             </div>
           )}
         </div>
@@ -477,13 +916,13 @@ export const QuickInsightDialog = ({
         <div className="p-6 pt-0 flex items-center justify-between border-t mt-0 pt-4">
           <Button
             variant="ghost"
-            onClick={step === "database" ? handleClose : handleBack}
+            onClick={step === "select-data" ? handleClose : handleBack}
           >
             <ChevronLeft className="w-4 h-4 mr-1" />
-            {step === "database" ? "Cancel" : "Back"}
+            {step === "select-data" ? "Cancel" : "Back"}
           </Button>
 
-          {step === "columns" && (
+          {step === "select-data" && (
             <Button
               onClick={handleContinueToVisualize}
               disabled={selectedColumns.length === 0}

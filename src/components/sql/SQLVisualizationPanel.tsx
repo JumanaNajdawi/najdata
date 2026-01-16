@@ -33,6 +33,7 @@ interface SQLVisualizationPanelProps {
   config: VisualizationConfig;
   onConfigChange: (config: VisualizationConfig) => void;
   columns?: string[];
+  hideChartTitle?: boolean;
 }
 
 export interface VisualizationConfig {
@@ -70,6 +71,7 @@ export const SQLVisualizationPanel = ({
   config,
   onConfigChange,
   columns = [],
+  hideChartTitle = false,
 }: SQLVisualizationPanelProps) => {
   const updateConfig = (updates: Partial<VisualizationConfig>) => {
     onConfigChange({ ...config, ...updates });
@@ -112,15 +114,17 @@ export const SQLVisualizationPanel = ({
       {/* Configuration Options */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {/* Chart Title */}
-        <div className="space-y-2">
-          <Label className="text-xs">Chart Title</Label>
-          <Input
-            placeholder="Enter chart title..."
-            value={config.chartTitle || ""}
-            onChange={(e) => updateConfig({ chartTitle: e.target.value })}
-            className="h-8 text-sm"
-          />
-        </div>
+        {!hideChartTitle && (
+          <div className="space-y-2">
+            <Label className="text-xs">Chart Title</Label>
+            <Input
+              placeholder="Enter chart title..."
+              value={config.chartTitle || ""}
+              onChange={(e) => updateConfig({ chartTitle: e.target.value })}
+              className="h-8 text-sm"
+            />
+          </div>
+        )}
 
         {/* Axis Configuration */}
         {showAxisConfig && columns.length > 0 && (
