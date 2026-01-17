@@ -419,7 +419,7 @@ export const SQLVisualizationPanel = ({
                   Filter
                 </div>
                 <Select
-                  value={config.transform?.filterColumn || ""}
+                  value={config.transform?.filterColumn || undefined}
                   onValueChange={(value) => updateTransform({ filterColumn: value })}
                 >
                   <SelectTrigger className="h-8 text-sm">
@@ -434,7 +434,7 @@ export const SQLVisualizationPanel = ({
                 {config.transform?.filterColumn && (
                   <>
                     <Select
-                      value={config.transform?.filterOperator || ""}
+                      value={config.transform?.filterOperator || undefined}
                       onValueChange={(value) => updateTransform({ filterOperator: value })}
                     >
                       <SelectTrigger className="h-8 text-sm">
@@ -466,7 +466,7 @@ export const SQLVisualizationPanel = ({
                 </div>
                 <div className="flex gap-2">
                   <Select
-                    value={config.transform?.sortColumn || ""}
+                    value={config.transform?.sortColumn || undefined}
                     onValueChange={(value) => updateTransform({ sortColumn: value })}
                   >
                     <SelectTrigger className="h-8 text-sm flex-1">
@@ -521,7 +521,7 @@ export const SQLVisualizationPanel = ({
                   Group By
                 </div>
                 <Select
-                  value={config.transform?.groupByColumn || ""}
+                  value={config.transform?.groupByColumn || undefined}
                   onValueChange={(value) => updateTransform({ groupByColumn: value })}
                 >
                   <SelectTrigger className="h-8 text-sm">
@@ -542,14 +542,13 @@ export const SQLVisualizationPanel = ({
                   Limit Rows
                 </div>
                 <Select
-                  value={String(config.transform?.limitRows || "")}
+                  value={config.transform?.limitRows ? String(config.transform.limitRows) : undefined}
                   onValueChange={(value) => updateTransform({ limitRows: value ? parseInt(value) : undefined })}
                 >
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue placeholder="No limit" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No limit</SelectItem>
                     <SelectItem value="10">10 rows</SelectItem>
                     <SelectItem value="25">25 rows</SelectItem>
                     <SelectItem value="50">50 rows</SelectItem>
